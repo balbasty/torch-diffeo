@@ -6,18 +6,24 @@ Scaling-and-squaring and Geodesic Shooting layers in PyTorch
 ```python
 Exp(bound='dft', steps=8, anagrad=False): ...
 """Exponentiate a Stationary Velocity Field"""
+
 BCH(bound='dft', order=2): ...
 """Compose two Stationary Velocity Fields using the BCH formula"""
+
 Shoot(metric=Mixture(), steps=8, fast=True): ...
-"""Exponentiate an Initial Velocity Field by Geodesic Shooting"""
 ShootInv(metric=Mixture(), steps=8, fast=True): ...
 ShootBoth(metric=Mixture(), steps=8, fast=True): ...
+"""Exponentiate an Initial Velocity Field by Geodesic Shooting"""
+
 Compose(bound='dft'): ...
 """Compose two Displacement Fields"""
+
 Pull(bound='dft'): ...
 """Warp an image using a Displacement Field"""
+
 Push(bound='dft', normalize=False): ...
 """Splat an image using a Displacement Field"""
+
 Count(bound='dft'): ...
 """Splat an image of ones using a Displacement Field"""
 ```
@@ -80,11 +86,11 @@ operations:
   approximate implementation of splatting. It should be fast, but also
   quite inaccurate.
 - `interpol`: This backend uses the package
-  [https://github.com/balbasty/torch-interpol](`torch-interpol`), which
+  [`torch-interpol`](https://github.com/balbasty/torch-interpol), which
   implements all the necessary operators using TorchScript. It is not the
   fastest but all operators and boundary conditions should be consistent.
 - `jitfields`: This backend uses the package
-  [https://github.com/balbasty/jitfields](`jitfields`), which
+  [`jitfields`](https://github.com/balbasty/jitfields), which
   implements the same operators as `torch-interpol`, but in pure C++/CUDA.
   It does require additional dependencies (`cupy` and `cppyy`), though.
   Therefore, `jitfields` is not a mandatory dependency of `torch-diffeo`
