@@ -9,6 +9,29 @@ class Exp(nn.Module):
     """Exponentiate a Stationary Velocity Field"""
 
     def __init__(self, bound='dft', steps=8, anagrad=False, backend=None):
+        """
+        Parameters
+        ----------
+        bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+            Boundary conditions.
+        steps : int
+            Number of scaling and squaring steps.
+        anagrad : bool
+            Use analytical gradients instead of autograd.
+        backend : module
+            Backend to use to implement resampling.
+            Must be one of the modules under `diffeo.backends`.
+
+        Notes
+        -----
+        .. The number of equivalent Euler integration steps is `2**steps`
+        .. Analytical gradients use less memory than autograd gradients,
+            as they do not require storing intermediate time steps during
+            scaling and squaring. However, they may be slightly less accurate.
+        .. In differential equation terms, autograd corresponds to the
+            strategy "discretize then optimize", whereas analytical gradients
+            correspond to the strategy "optimize then discretize".
+        """
         super().__init__()
         self.bound = bound
         self.steps = steps
@@ -23,9 +46,27 @@ class Exp(nn.Module):
 
 
 class BCH(nn.Module):
-    """Compose two Stationary Velocity Fields using the BCH formula"""
+    """
+    Compose two Stationary Velocity Fields using the BCH formula
+
+    The Baker–Campbell–Hausdorff (BCH) allows computing z such that
+    exp(z) = exp(x) o exp(y).
+
+    https://en.wikipedia.org/wiki/BCH_formula
+    """
 
     def __init__(self, bound='dft', order=2, backend=None):
+        """
+        Parameters
+        ----------
+        bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+            Boundary conditions.
+        order : int
+            Maximum order used in the BCH series
+        backend : module
+            Backend to use to implement resampling.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.bound = bound
         self.order = order
@@ -44,6 +85,19 @@ class Shoot(nn.Module):
 
     def __init__(self, metric=default_metric, steps=8, fast=True,
                  backend=None):
+        """
+        Parameters
+        ----------
+        metric : Metric
+            A Riemannian metric
+        steps : int
+            Number of Euler integration steps.
+        fast : int
+            Use a faster but slightly less accurate integration scheme.
+        backend : module
+            Backend to use to implement pullback and pushforward.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.metric = metric
         self.steps = steps

@@ -5,27 +5,86 @@ Scaling-and-squaring and Geodesic Shooting layers in PyTorch
 
 ```python
 Exp(bound='dft', steps=8, anagrad=False): ...
-"""Exponentiate a Stationary Velocity Field"""
+"""Exponentiate a Stationary Velocity Field
+
+Parameters
+----------
+bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+    Boundary conditions.
+steps : int
+    Number of scaling and squaring steps.
+anagrad : bool
+    Use analytical gradients instead of autograd.
+"""
 
 BCH(bound='dft', order=2): ...
-"""Compose two Stationary Velocity Fields using the BCH formula"""
+"""Compose two Stationary Velocity Fields using the BCH formula
+
+The Baker–Campbell–Hausdorff (BCH) allows computing z such that
+exp(z) = exp(x) o exp(y).
+
+https://en.wikipedia.org/wiki/BCH_formula
+    
+Parameters
+----------
+bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+    Boundary conditions.
+order : int
+    Maximum order used in the BCH series
+"""
 
 Shoot(metric=Mixture(), steps=8, fast=True): ...
 ShootInv(metric=Mixture(), steps=8, fast=True): ...
 ShootBoth(metric=Mixture(), steps=8, fast=True): ...
-"""Exponentiate an Initial Velocity Field by Geodesic Shooting"""
+"""Exponentiate an Initial Velocity Field by Geodesic Shooting
+
+Parameters
+----------
+metric : Metric
+    A Riemannian metric
+steps : int
+    Number of Euler integration steps.
+fast : int
+    Use a faster but slightly less accurate integration scheme.
+"""
 
 Compose(bound='dft'): ...
-"""Compose two Displacement Fields"""
+"""Compose two Displacement Fields
+
+Parameters
+----------
+bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+    Boundary conditions.
+"""
 
 Pull(bound='dft'): ...
-"""Warp an image using a Displacement Field"""
+"""Warp an image using a Displacement Field
+
+Parameters
+----------
+bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+    Boundary conditions.
+"""
 
 Push(bound='dft', normalize=False): ...
-"""Splat an image using a Displacement Field"""
+"""Splat an image using a Displacement Field
+
+Parameters
+----------
+bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+    Boundary conditions.
+normalize : bool
+    Divide the pushed values by the result of `Count`.
+"""
 
 Count(bound='dft'): ...
-"""Splat an image of ones using a Displacement Field"""
+"""Splat an image of ones using a Displacement Field
+
+Parameters
+----------
+bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+    Boundary conditions.
+"""
 ```
 
 ## Metrics
@@ -44,6 +103,35 @@ Mixture of "absolute", "membrane", "bending" and "linear-elastic" energies.
 Note that these quantities refer to what's penalised when computing the
 inner product (v, Lv). The "membrane" energy is therefore closely related
 to the "Laplacian" metric.
+
+Parameters
+----------
+absolute : float
+    Penalty on (squared) absolute values
+membrane: float
+    Penalty on (squared) first derivatives
+bending : float
+    Penalty on (squared) second derivatives
+lame_shears : float
+    Penalty on the (squared) symmetric component of the Jacobian
+lame_div : float
+    Penalty on the trace of the Jacobian
+factor : float
+    Global regularization factor (optionally: learnable)
+voxel_size : list[float]
+    Voxel size
+bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+    Boundary conditions
+use_diff : bool
+    Use finite differences to perform the forward pass.
+    Otherwise, perform the convolution in Fourier space.
+learnable : bool or {'components'}
+    Make `factor` a learnable parameter.
+    If 'components', the individual factors (absolute, membrane, etc)
+    are learned instead of the global factor, which is then fixed.
+cache : bool or int
+    Cache up to `n` kernels
+    This cannot be used when `learnable='components'`
 """
 
 Laplace(factor=1, voxel_size=1, bound='dft',
@@ -55,6 +143,19 @@ the (ill-posed) analytical form of the Greens function.
 
 https://en.wikipedia.org/wiki/Laplace%27s_equation
 https://en.wikipedia.org/wiki/Green%27s_function
+
+Parameters
+----------
+factor : float
+    Regularization factor (optionally: learnable)
+voxel_size : list[float]
+    Voxel size
+bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+    Boundary conditions
+learnable : bool
+    Make `factor` a learnable parameter
+cache : bool or int
+    Cache up to `n` kernels
 """
 
 Helmoltz(factor=1, alpha=1e-3, voxel_size=1, bound='dft',
@@ -67,12 +168,46 @@ of the Greens function.
 
 https://en.wikipedia.org/wiki/Helmholtz_equation
 https://en.wikipedia.org/wiki/Green%27s_function
+
+Parameters
+----------
+factor : float
+    Regularization factor (optionally: learnable)
+alpha : float
+    Diagonal regularizer.
+    It is the square of the eigenvalue in the Helmoltz equation.
+voxel_size : list[float]
+    Voxel size
+bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+    Boundary conditions
+learnable : bool
+    Make `factor` a learnable parameter
+cache : bool or int
+    Cache up to `n` kernels
 """
 
 Gaussian(fwhm=16, factor=1, voxel_size=1, bound='dft',
          earnable=False, cache=False): ...
 """
 Positive semi-definite metric whose Greens function is a Gaussian filter.
+
+Parameters
+----------
+fwhm : float
+    Full-width at half-maximum of the Gaussian filter, in mm
+     (optionally: learnable)
+factor : float
+    Global regularization factor (optionally: learnable)
+voxel_size : list[float]
+    Voxel size
+bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+    Boundary conditions
+learnable : bool or {'factor', 'fwhm', 'fwhm+factor}
+    Make `factor` and/or 'fwhm' a learnable parameter.
+    `True` is equivalent to `factor`.
+cache : bool or int
+    Cache up to `n` kernels
+    This cannot be ]()used when `learnable='fwhm'`
 """
 ```
 
