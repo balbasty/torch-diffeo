@@ -92,6 +92,91 @@ bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
 We define a range of Riemannian metrics that can be used to regularize
 velocity fields, and must be used for Geodesic Shooting.
 
+All metrics implement the following methods:
+```python
+metric.forward(v: Tensor) -> Tensor: ...
+"""
+Apply the forward linear operator `L`
+
+Parameters
+----------
+v : (B, D, *spatial) tensor
+    A velocity field.
+
+Returns
+-------
+m : (B, D, *spatial) tensor
+    A momentum field.
+"""
+
+metric.inverse(m: Tensor) -> Tensor: ...
+"""
+Apply the inverse linear operator `K = inv(L)`
+
+Parameters
+----------
+m : (B, D, *spatial) tensor
+    A momentum field.
+
+Returns
+-------
+v : (B, D, *spatial) tensor
+    A velocity field.
+
+Returns
+-------
+m : (B, D, *spatial) tensor
+    A momentum field.
+"""
+
+metric.whiten(v: Tensor) -> Tensor: ...
+"""
+Apply the square root of the inverse linear operator `sqrt(K)`
+
+Parameters
+----------
+v : (B, D, *spatial) tensor
+    A velocity field.
+    
+Returns
+-------
+x : (B, D, *spatial) tensor
+    A white field.
+"""
+
+metric.color(x: Tensor) -> Tensor: ...
+"""
+Apply the square root of the linear operator `sqrt(L)`
+
+Parameters
+----------
+x : (B, D, *spatial) tensor
+    A white field.
+
+Returns
+-------
+v : (B, D, *spatial) tensor
+    A velocity field.
+"""
+
+metric.logdet(v: Tensor) -> Tensor: ...
+"""
+Compute the log-determinant of the linear operator `logdet(L)`
+
+Parameters
+----------
+v : (B, D, *spatial) tensor
+    A velocity field. 
+    Its values are not used. Only its shape, dtype and device are used.
+    
+Returns
+-------
+ld : scalar tensor
+    Log-determinant (scaled by batch size).
+"""
+```
+
+This is the list metrics currently available:
 ```python
 Mixture(absolute=0, membrane=0, bending=0, lame_shears=0, lame_div=0,
         factor=1, voxel_size=1, bound='dft', use_diff=True,
