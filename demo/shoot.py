@@ -2,6 +2,7 @@ import torch
 from diffeo.layers import Shoot, Pull
 from diffeo.metrics import Mixture
 from diffeo.tests.phantoms import circle, letterc
+from diffeo.backends import torch as torch_backend
 import matplotlib.pyplot as plt
 
 
@@ -46,20 +47,23 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=2e-4, nbiter=1024
     if metric is None:
         metric = Mixture(
             absolute=1e-4,
-            membrane=1e-3,
-            bending=0.2,
-            lame_shears=0.05,
-            lame_div=0.2,
+            # membrane=1e-3,
+            membrane=0.2,
+            # bending=0.2,
+            # lame_shears=0.05,
+            # lame_div=0.2,
             factor=0.1,
-            use_diff=True,
+            use_diff=False,
+            cache=True,
+            bound='dst2',
         )
 
     vel = mov.new_zeros([1, fix.ndim, *fix.shape], requires_grad=True)
     fix = fix[None, None]
     mov = mov[None, None]
 
-    exp = Shoot(metric, fast=True)
-    pull = Pull()
+    exp = Shoot(metric, fast=True, backend=torch_backend)
+    pull = Pull(backend=torch_backend)
 
     def penalty(v):
         v = v.movedim(1, -1)

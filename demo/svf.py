@@ -49,13 +49,15 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=1e-3, nbiter=256)
             lame_shears=0.1,
             lame_div=1e-3,
             factor=1e-2,
-            use_diff=True)
+            use_diff=True,
+            cache=True,
+            bound='dst2')
 
     vel = mov.new_zeros([1, fix.ndim, *fix.shape], requires_grad=True)
     fix = fix[None, None]
     mov = mov[None, None]
 
-    exp = Exp(anagrad=True)
+    exp = Exp(anagrad=True, bound='dct2')
     pull = Pull()
 
     def penalty(v):

@@ -304,6 +304,7 @@ operations:
   [`torch-interpol`](https://github.com/balbasty/torch-interpol), which
   implements all the necessary operators using TorchScript. It is not the
   fastest but all operators and boundary conditions should be consistent.
+  **This is the default backend.**
 - `jitfields`: This backend uses the package
   [`jitfields`](https://github.com/balbasty/jitfields), which
   implements the same operators as `torch-interpol`, but in pure C++/CUDA.
@@ -329,3 +330,6 @@ with backend(jitfields):
     layer2 = BCH()
 ```
 
+Note that we currently have issues when using the `torch` backend along
+with geodesic shooting layers. Classic interpolation and stationary 
+velocity fields should work fine, however.
