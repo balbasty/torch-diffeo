@@ -160,3 +160,44 @@ def cartesian_grid(shape, **backend):
     list[Tensor]
     """
     return meshgrid_script_ij([torch.arange(s, **backend) for s in shape])
+
+
+def expand_shapes(*shapes, side='left'):
+    """Expand input shapes according to broadcasting rules
+    Parameters
+    ----------
+    *shapes : sequence[int]
+        Input shapes
+    side : {'left', 'right'}, default='left'
+        Side to add singleton dimensions.
+    Returns
+    -------
+    shape : tuple[int]
+        Output shape
+    Raises
+    ------
+    ValueError
+        If shapes are not compatible for broadcast.
+    """
+    def error(s0, s1):
+        raise ValueError('Incompatible shapes for broadcasting: {} and {}.'
+                         .format(s0, s1))
+
+    # 1. nb dimensions
+    nb_dim = 0
+    for shape in shapes:
+        nb_dim = max(nb_dim, len(shape))
+
+    # 2. enumerate
+    shape = [1] * nb_dim
+    for i, shape1 in enumerate(shapes):
+        pad_size = nb_dim - len(shape1)
+        ones = [1] * pad_size
+        if side == 'left':
+            shape1 = [*ones, *shape1]
+        else:
+            shape1 = [*shape1, *ones]
+        shape = [max(s0, s1) if s0 == 1 or s1 == 1 or s0 == s1
+                 else error(s0, s1) for s0, s1 in zip(shape, shape1)]
+
+    return tuple(shape)

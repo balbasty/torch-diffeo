@@ -1,6 +1,6 @@
 import torch
 from torch.nn import functional as F
-from diffeo.utils import cartesian_grid
+from diffeo.utils import cartesian_grid, expand_shapes
 
 
 def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
@@ -8,12 +8,12 @@ def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
 
     Parameters
     ----------
-    image : (B, *shape_in, C) tensor
+    image : (..., *shape_in, C) tensor
         Input image.
         If input dtype is integer, assumes labels: each unique labels
         gets warped using linear interpolation, and the label map gets
         reconstructed by argmax.
-    flow : ([B], *shape_out, D) tensor
+    flow : (..., *shape_out, D) tensor
         Displacement field, in voxels.
         Note that the order of the last dimension is inverse of what's
         usually expected in torch's grid_sample.
@@ -26,27 +26,29 @@ def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
 
     Returns
     -------
-    warped : (B, *shape_out, C) tensor
+    warped : (..., *shape_out, C) tensor
         Warped image
 
     """
     kwargs.setdefault('align_corners', True)
     kwargs.setdefault('padding_mode', 'reflection')
-    image = image.movedim(-1, 0)
-    B, C, *shape_in = image.shape
-    D = flow.shape[-1]
-    if flow.dim() == D+1:
-        flow = flow[None]
-    shape_out = flow.shape[1:-1]
-    flow = flow_to_torch(flow, shape_in,
+    C, D = image.shape[-1], flow.shape[-1]
+    shape_out = flow.shape[-D-1:-1]
+    shape_inp = image.shape[-D-1:-1]
+    batch = expand_shapes(image.shape[:-D-1], flow.shape[:-D-1])
+    image = image.expand([*batch, *shape_inp, C])
+    flow = flow.expand([*batch, *shape_out, D])
+    if len(batch) != 1:
+        image = image.reshape([-1, *shape_inp, C])
+        flow = flow.reshape([-1, *shape_out, D])
+
+    flow = flow_to_torch(flow, shape_inp,
                          align_corners=kwargs['align_corners'],
                          has_identity=has_identity)
-    B = max(len(flow), len(image))
-    if len(flow) != B:
-        flow = flow.expand([B, *flow.shape[1:]])
-    if len(image) != B:
-        image = image.expand([B, *image.shape[1:]])
-    return F.grid_sample(image, flow, **kwargs).movedim(1, -1)
+    image = F.grid_sample(image.movedim(-1, 1), flow, **kwargs).movedim(1, -1)
+    if len(batch) != 1:
+        image = image.reshape([*batch, *shape_inp, C])
+    return image
 
 
 def flow_to_torch(flow, shape, align_corners=True, has_identity=False):

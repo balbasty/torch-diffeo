@@ -62,9 +62,12 @@ class Metric(nn.Module):
         # Matrix multiply
         if kernel.ndim == ndim + 2:
             # matrix multiply
-            x = torch.complex(
-                kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
-                kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+            if x.is_complex():
+                x = torch.complex(
+                    kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
+                    kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+            else:
+                x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
         else:
             # pointwise multiply
             x = x * kernel
@@ -93,9 +96,12 @@ class Metric(nn.Module):
 
         if kernel.ndim == ndim + 2:
             # matrix multiply
-            x = torch.complex(
-                kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
-                kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+            if x.is_complex():
+                x = torch.complex(
+                    kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
+                    kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+            else:
+                x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
         else:
             # pointwise multiply
             x = x * kernel
@@ -136,7 +142,12 @@ class Metric(nn.Module):
 
         if kernel.ndim == ndim + 2:
             # matrix multiply
-            x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
+            if x.is_complex():
+                x = torch.complex(
+                    kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
+                    kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+            else:
+                x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
         else:
             # pointwise multiply
             x = x * kernel
@@ -177,7 +188,12 @@ class Metric(nn.Module):
 
         if kernel.ndim == ndim + 2:
             # matrix multiply
-            x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
+            if x.is_complex():
+                x = torch.complex(
+                    kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
+                    kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+            else:
+                x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
         else:
             # pointwise multiply
             x = x * kernel

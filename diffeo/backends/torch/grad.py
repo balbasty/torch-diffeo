@@ -8,12 +8,12 @@ def grad(image, flow, bound='dct2', has_identity=False):
 
     Parameters
     ----------
-    image : (B, *shape_in, C) tensor
+    image : (..., *shape_in, C) tensor
         Input image.
         If input dtype is integer, assumes labels: each unique labels
         gets warped using linear interpolation, and the label map gets
         reconstructed by argmax.
-    flow : ([B], *shape_out, D) tensor
+    flow : (..., *shape_out, D) tensor
         Displacement field, in voxels.
         Note that the order of the last dimension is inverse of what's
         usually expected in torch's grid_sample.
@@ -26,7 +26,7 @@ def grad(image, flow, bound='dct2', has_identity=False):
 
     Returns
     -------
-    grad : (B, *shape_out, C, D) tensor
+    grad : (..., *shape_out, C, D) tensor
         Sampled gradients
 
     """

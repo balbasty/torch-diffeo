@@ -7,9 +7,9 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
 
     Parameters
     ----------
-    image : (B, *shape_in, C) tensor
+    image : (..., *shape_in, C) tensor
         Input image.
-    flow : ([B], *shape_out, D) tensor
+    flow : (..., *shape_out, D) tensor
         Displacement field, in voxels.
     shape : list[int], optional
         Output shape
@@ -21,7 +21,7 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
 
     Returns
     -------
-    pushed : (B, *shape_out, C) tensor
+    pushed : (..., *shape_out, C) tensor
         Pushed image
 
     """

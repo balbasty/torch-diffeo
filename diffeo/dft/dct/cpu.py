@@ -12,13 +12,14 @@ class DCT(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return F.dctn(x, type=type, axes=dim, norm=norm)
+        x = F.dctn(to_numpy(x), type=type, axes=dim, norm=norm)
+        return from_numpy(x)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = F.idctn(x, type=ctx.type, axes=ctx.dim, norm=norm)
-        return x, None, None, None
+        x = F.idctn(to_numpy(x), type=ctx.type, axes=ctx.dim, norm=norm)
+        return from_numpy(x), None, None, None
 
 
 class IDCT(torch.autograd.Function):
@@ -28,13 +29,14 @@ class IDCT(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return F.idctn(x, type=type, axes=dim, norm=norm)
+        x = F.idctn(to_numpy(x), type=type, axes=dim, norm=norm)
+        return from_numpy(x)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = F.dctn(x, type=ctx.type, axes=ctx.dim, norm=norm)
-        return x, None, None, None
+        x = F.dctn(to_numpy(x), type=ctx.type, axes=ctx.dim, norm=norm)
+        return from_numpy(x), None, None, None
 
 
 class DST(torch.autograd.Function):
@@ -44,13 +46,14 @@ class DST(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return F.dstn(x, type=type, axes=dim, norm=norm)
+        x = F.dstn(to_numpy(x), type=type, axes=dim, norm=norm)
+        return from_numpy(x)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = F.idstn(x, type=ctx.type, axes=ctx.dim, norm=norm)
-        return x, None, None, None
+        x = F.idstn(to_numpy(x), type=ctx.type, axes=ctx.dim, norm=norm)
+        return from_numpy(x), None, None, None
 
 
 class IDST(torch.autograd.Function):
@@ -60,10 +63,19 @@ class IDST(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return F.idstn(x, type=type, axes=dim, norm=norm)
+        x = F.idstn(to_numpy(x), type=type, axes=dim, norm=norm)
+        return from_numpy(x)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = F.dstn(x, type=ctx.type, axes=ctx.dim, norm=norm)
-        return x, None, None, None
+        x = F.dstn(to_numpy(x), type=ctx.type, axes=ctx.dim, norm=norm)
+        return from_numpy(x), None, None, None
+
+
+def to_numpy(x):
+    return x.detach().numpy()
+
+
+def from_numpy(x):
+    return torch.as_tensor(x)

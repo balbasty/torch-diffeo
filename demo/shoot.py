@@ -51,7 +51,8 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=2e-4, nbiter=1024
             lame_shears=0.05,
             lame_div=0.2,
             factor=0.1,
-            use_diff=True)
+            use_diff=True,
+        )
 
     vel = mov.new_zeros([1, fix.ndim, *fix.shape], requires_grad=True)
     fix = fix[None, None]

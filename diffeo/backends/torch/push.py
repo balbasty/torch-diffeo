@@ -10,9 +10,9 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
 
     Parameters
     ----------
-    image : (B, *shape_in, C) tensor
+    image : (..., *shape_in, C) tensor
         Input image.
-    flow : ([B], *shape_out, D) tensor
+    flow : (..., *shape_out, D) tensor
         Displacement field, in voxels.
         Note that the order of the last dimension is inverse of what's
         usually expected in torch's grid_sample.
@@ -27,7 +27,7 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
 
     Returns
     -------
-    pushed : (B, *shape_out, C) tensor
+    pushed : (..., *shape_out, C) tensor
         Pushed image
 
     """
