@@ -1,5 +1,4 @@
 import torch
-import importlib
 from diffeo.utils import cartesian_grid
 from diffeo.diffdiv import diff
 from diffeo.backends import interpol as interpol_backend
@@ -230,7 +229,10 @@ def compose(flow_left, flow_right, bound='dft', has_identity=False, backend=inte
     if has_identity:
         flow_left = sub_identity(flow_left)
     flow = backend.pull(flow_left, flow_right, bound=bound, has_identity=has_identity)
-    flow += flow_right
+    if flow.requires_grad:
+        flow = flow + flow_right
+    else:
+        flow += flow_right
     return flow
 
 

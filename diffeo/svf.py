@@ -3,7 +3,7 @@ __all__ = ['exp', 'bch', 'exp_forward', 'exp_backward']
 import torch
 from diffeo.flows import compose, compose_jacobian, jacobian, bracket
 from diffeo.backends import interpol
-from diffeo.linalg import matvec, jhj
+from diffeo.linalg import matvec, jhj, fastinv
 
 
 def exp(vel, steps=8, bound='dft', anagrad=False, backend=interpol):
@@ -155,7 +155,7 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='dft', rotate_grad=False,
     # rotate gradient a bit so that when steps == 0, we get the same
     # gradients as the smalldef case
     ijac = 2 * torch.eye(ndim, dtype=jac.dtype, device=jac.device) - jac
-    ijac = ijac.transpose(-1, -2).inverse()
+    ijac = fastinv(ijac.transpose(-1, -2))
     grad = matvec(ijac, grad)
     del ijac
 
@@ -197,9 +197,11 @@ class _Exp(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad):
         vel, = ctx.saved_tensors
-        grad = exp_backward(vel, grad,
-                            steps=ctx.args['steps'],
-                            bound=ctx.args['bound'],
-                            backend=ctx.args['backend'],
-                            rotate_grad=True)
+        grad, _ = exp_backward(
+            vel, grad,
+            steps=ctx.args['steps'],
+            bound=ctx.args['bound'],
+            backend=ctx.args['backend'],
+            rotate_grad=True,
+        )
         return (grad,) + (None,)*3

@@ -1,5 +1,4 @@
-from interpol import grid_grad as _grad
-from diffeo.flows import add_identity
+from interpol import grid_grad as _grad, add_identity_grid as add_identity
 
 
 def grad(image, flow, bound='dct2', has_identity=False):
@@ -31,5 +30,7 @@ def grad(image, flow, bound='dct2', has_identity=False):
     """
     if not has_identity:
         flow = add_identity(flow)
-    image = image.movedim(-1, 1)
-    return _grad(image, flow, bound=bound, interpolation=1, extrapolate=True).movedim(1, -2)
+    ndim = flow.shape[-1]
+    image = image.movedim(-1, -ndim-1)
+    image = _grad(image, flow, bound=bound, interpolation=1, extrapolate=True)
+    return image.movedim(-ndim-2, -2)

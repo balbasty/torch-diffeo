@@ -1,10 +1,11 @@
 import torch
 import itertools
+from typing import Union
 from diffeo.utils import make_vector, ensure_list
 from diffeo.diffdiv import diff, div, diff1d, div1d
 
 
-def absolute(grid, voxel_size=1):
+def absolute(grid, voxel_size=1, bound='dft'):
     """Precision matrix for the Absolute energy of a deformation grid
 
     Parameters
@@ -70,11 +71,12 @@ def bending(grid, voxel_size=1, bound='dft'):
 
     """
     backend = dict(dtype=grid.dtype, device=grid.device)
-    dim = grid.shape[-1]
-    voxel_size = make_vector(voxel_size, dim, **backend)
-    grid = grid.movedim(-1, -(dim + 1))
+    ndim = grid.shape[-1]
+    bound = ensure_list(bound, ndim)
+    voxel_size = make_vector(voxel_size, ndim, **backend)
+    grid = grid.movedim(-1, -(ndim + 1))
 
-    dims = list(range(grid.dim()-dim, grid.dim()))
+    dims = list(range(grid.dim()-ndim, grid.dim()))
 
     # allocate buffers
     if not grid.requires_grad:
@@ -85,12 +87,12 @@ def bending(grid, voxel_size=1, bound='dft'):
         bufi = bufij = bufjj = None
 
     mom = 0
-    for i in range(dim):
+    for i in range(ndim):
         for side_i in ('f', 'b'):
             opti = dict(dim=dims[i], bound=bound[i], side=side_i,
                         voxel_size=voxel_size[i])
             di = diff1d(grid, **opti, out=bufi)
-            for j in range(i, dim):
+            for j in range(i, ndim):
                 for side_j in ('f', 'b'):
                     optj = dict(dim=dims[j], bound=bound[j], side=side_j,
                                 voxel_size=voxel_size[j])
@@ -103,7 +105,7 @@ def bending(grid, voxel_size=1, bound='dft'):
                     mom += dj
     grid = mom.div_(4.)
 
-    grid = grid.movedim(-(dim + 1), -1)
+    grid = grid.movedim(-(ndim + 1), -1)
     if (voxel_size != 1).any():
         grid.mul_(voxel_size.square())
     return grid
@@ -124,10 +126,11 @@ def lame_shear(grid, voxel_size=1, bound='dft'):
 
     """
     backend = dict(dtype=grid.dtype, device=grid.device)
-    dim = grid.shape[-1]
-    voxel_size = make_vector(voxel_size, dim, **backend)
-    bound = ensure_list(bound, dim)
-    dims = list(range(grid.dim() - 1 - dim, grid.dim() - 1))
+    ndim = grid.shape[-1]
+    bound = ensure_list(bound, ndim)
+    voxel_size = make_vector(voxel_size, ndim, **backend)
+    bound = ensure_list(bound, ndim)
+    dims = list(range(grid.dim() - 1 - ndim, grid.dim() - 1))
 
     # allocate buffers
     if not grid.requires_grad:
@@ -138,10 +141,10 @@ def lame_shear(grid, voxel_size=1, bound='dft'):
         buf1 = buf2 = buf3 = None
 
     mom = torch.zeros_like(grid)
-    for i in range(dim):
+    for i in range(ndim):
         # symmetric part
         x_i = grid[..., i]
-        for j in range(i, dim):
+        for j in range(i, ndim):
             for side_i in ('f', 'b'):
                 opt_ij = dict(dim=dims[j], side=side_i, bound=bound[j],
                               voxel_size=voxel_size[j])
@@ -185,14 +188,14 @@ def lame_div(grid, voxel_size=1, bound='dft'):
     grid : (..., *spatial, dim) tensor
 
     """
-    dim = grid.shape[-1]
-    bound = ensure_list(bound, dim)
-    dims = list(range(grid.dim() - 1 - dim, grid.dim() - 1))
+    ndim = grid.shape[-1]
+    bound = ensure_list(bound, ndim)
+    dims = list(range(grid.dim() - 1 - ndim, grid.dim() - 1))
 
     # precompute gradients
-    grad = [dict(f={}, b={}) for _ in range(dim)]
-    opt = [dict(f={}, b={}) for _ in range(dim)]
-    for i in range(dim):
+    grad = [dict(f={}, b={}) for _ in range(ndim)]
+    opt = [dict(f={}, b={}) for _ in range(ndim)]
+    for i in range(ndim):
         x_i = grid[..., i]
         for side in ('f', 'b'):
             opt_i = dict(dim=dims[i], side=side, bound=bound[i])
@@ -207,7 +210,7 @@ def lame_div(grid, voxel_size=1, bound='dft'):
 
     # compute divergence
     mom = torch.zeros_like(grid)
-    all_sides = list(itertools.product(['f', 'b'], repeat=dim))
+    all_sides = list(itertools.product(['f', 'b'], repeat=ndim))
     for sides in all_sides:
         div = buf1.zero_() if buf1 is not None else 0
         for i, side in enumerate(sides):
@@ -215,7 +218,7 @@ def lame_div(grid, voxel_size=1, bound='dft'):
         for i, side in enumerate(sides):
             mom[..., i] += div1d(div, **(opt[i][side]), out=buf2)
 
-    mom /= float(2 ** dim)  # weight sides combinations
+    mom /= float(2 ** ndim)  # weight sides combinations
     return mom
 
 
@@ -250,8 +253,11 @@ def mixture(v, absolute=0, membrane=0, bending=0, lame_shear=0, lame_div=0,
     backend = dict(dtype=v.dtype, device=v.device)
     dim = v.shape[-1]
 
-    if not (absolute or membrane or bending or lame_shear or lame_div):
-        return torch.zeros_like(v)
+    a0 = not is_zero(absolute)
+    m0 = not is_zero(membrane)
+    b0 = not is_zero(bending)
+    s0 = not is_zero(lame_shear)
+    d0 = not is_zero(lame_div)
 
     voxel_size = make_vector(voxel_size, dim, **backend)
     absolute = absolute * factor
@@ -262,15 +268,22 @@ def mixture(v, absolute=0, membrane=0, bending=0, lame_shear=0, lame_div=0,
     fdopt = dict(bound=bound, voxel_size=voxel_size)
 
     y = torch.zeros_like(v)
-    if absolute:
-        y.add_(_absolute(v, voxel_size=voxel_size), alpha=absolute)
-    if membrane:
+    if a0:
+        y.add_(_absolute(v, **fdopt), alpha=absolute)
+    if m0:
         y.add_(_membrane(v, **fdopt), alpha=membrane)
-    if bending:
+    if b0:
         y.add_(_bending(v, **fdopt), alpha=bending)
-    if lame_shear:
+    if s0:
         y.add_(_lame_shear(v, **fdopt), alpha=lame_shear)
-    if lame_div:
+    if d0:
         y.add_(_lame_div(v, **fdopt), alpha=lame_div)
 
     return y
+
+
+def is_zero(x: Union[float, torch.Tensor]) -> bool:
+    if torch.is_tensor(x) and x.requires_grad:
+        return False
+    else:
+        return x == 0

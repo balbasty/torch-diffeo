@@ -23,7 +23,7 @@ def absolute(dim, voxel_size=1, dtype=None, device=None):
         torch.ones([1], dtype=dtype, device=device),
         [1] * dim)
 
-    kernel = torch.stack([kernel * vx.square() for vx in voxel_size], dim=0)
+    kernel = torch.stack([kernel * v for v in voxel_size.square()], dim=0)
     return kernel
 
 
@@ -61,7 +61,7 @@ def membrane(dim, voxel_size=1, dtype=None, device=None):
     kernel = torch.as_tensor(kernel, dtype=dtype, device=device)
     kernel = torch.sparse_coo_tensor(indices.t(), kernel, [3] * dim)
 
-    kernel = torch.stack([kernel * vx.square() for vx in voxel_size], dim=0)
+    kernel = torch.stack([kernel * v for v in voxel_size.square()], dim=0)
     return kernel
 
 
@@ -128,7 +128,7 @@ def bending(dim, voxel_size=1, dtype=None, device=None):
     kernel = torch.as_tensor(kernel, dtype=dtype, device=device)
     kernel = torch.sparse_coo_tensor(indices.t(), kernel, [5] * dim)
 
-    kernel = torch.stack([kernel * vx.square() for vx in voxel_size], dim=0)
+    kernel = torch.stack([kernel * v for v in voxel_size.square()], dim=0)
     return kernel
 
 

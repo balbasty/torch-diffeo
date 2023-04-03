@@ -2,8 +2,8 @@
 import torch
 from diffeo.metrics.discrete import Mixture
 from diffeo.backends import interpol
-from diffeo.linalg import matvec
-from diffeo.flows import jacobian
+from diffeo.linalg import matvec, fastinv
+from diffeo.flows import jacobian, compose
 
 
 default_metric = Mixture(absolute=0.001, membrane=0.1)
@@ -32,7 +32,7 @@ def shoot(vel, metric=default_metric, steps=8, fast=True, verbose=False,
     fast : bool, default=True
         If True, use a faster integration scheme, which may induce
         some numerical error (the energy is not exactly preserved
-        along time). Else, use the slower but more precise scheme.
+        across time). Else, use the slower but more precise scheme.
 
     Returns
     -------
@@ -56,7 +56,6 @@ def shoot(vel, metric=default_metric, steps=8, fast=True, verbose=False,
     # and was distributed as part of [SPM](https://www.fil.ion.ucl.ac.uk/spm)
     # under the GNU General Public Licence (version >= 2).
 
-    vel = torch.as_tensor(vel)
     ndim = vel.shape[-1]
     spatial = vel.shape[-ndim-1:-1]
 
@@ -84,7 +83,7 @@ def shoot(vel, metric=default_metric, steps=8, fast=True, verbose=False,
             mom = backend.push(mom, vel, bound=metric.bound)
         else:
             # push initial momentum using full flow
-            jac = jacobian(idisp, add_identity=True).inverse()
+            jac = fastinv(jacobian(idisp, bound=metric.bound, add_identity=True))
             mom = matvec(jac.transpose(-1, -2), mom0)
             mom = backend.push(mom, idisp, bound=metric.bound)
 
@@ -99,8 +98,10 @@ def shoot(vel, metric=default_metric, steps=8, fast=True, verbose=False,
         # $\psi \gets \psi \circ (id - \tfrac{1}{T} v)$
         # JA: I found that simply using
         # $\psi \gets \psi - \tfrac{1}{T} (D \psi) v$ was not so stable.
-        disp = backend.pull(disp, -vel, bound=metric.bound).sub_(vel)
-        idisp = backend.pull(vel, idisp, bound=metric.bound).add_(idisp)
+        disp = compose(disp, -vel, bound=metric.bound)
+        idisp = compose(vel, idisp, bound=metric.bound)
+        # disp = isub(backend.pull(disp, -vel, bound=metric.bound), vel)
+        # idisp = iadd(backend.pull(vel, idisp, bound=metric.bound), idisp)
 
     if verbose:
         print('')

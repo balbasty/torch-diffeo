@@ -33,7 +33,9 @@ def grad(image, flow, bound='dct2', has_identity=False):
     ndim = flow.shape[-1]
     jac = jacobian(flow, bound=bound, has_identity=has_identity, add_identity=True)
     jac = jac.inverse()
-    image = pull(image, flow, bound=bound, order=1, extrapolate=True, has_identity=True)
-    image = diff(image, range(-ndim, 0), bound=bound)
-    image = jac.unsqueeze(-3).matmul(image.unsqueeze(-1)).squeeze(-1)
+    image = pull(image, flow, bound=bound, has_identity=has_identity)
+    image = image.movedim(-1, -ndim-1)
+    image = diff(image, dim=range(-ndim, 0), bound=bound)
+    image = jac.unsqueeze(-ndim-2).matmul(image.unsqueeze(-1)).squeeze(-1)
+    image = image.movedim(-ndim-2, -2)
     return image

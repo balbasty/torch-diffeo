@@ -32,7 +32,7 @@ def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
     """
     kwargs.setdefault('align_corners', True)
     kwargs.setdefault('padding_mode', 'reflection')
-    image = image.movedim(1, 0)
+    image = image.movedim(-1, 0)
     B, C, *shape_in = image.shape
     D = flow.shape[-1]
     if flow.dim() == D+1:
@@ -46,16 +46,7 @@ def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
         flow = flow.expand([B, *flow.shape[1:]])
     if len(image) != B:
         image = image.expand([B, *image.shape[1:]])
-    if not image.dtype.is_floating_point:
-        vmax = flow.new_full([B, C, *shape_out], -float('inf'))
-        warped = image.new_zeros([B, C, *shape_out])
-        for label in image.unique():
-            w = F.grid_sample((image == label).to(flow), flow, **kwargs)
-            warped[w > vmax] = label
-            vmax = torch.maximum(vmax, w)
-        return warped.movedim(-1, 1)
-    else:
-        return F.grid_sample(image, flow, **kwargs).movedim(-1, 1)
+    return F.grid_sample(image, flow, **kwargs).movedim(1, -1)
 
 
 def flow_to_torch(flow, shape, align_corners=True, has_identity=False):

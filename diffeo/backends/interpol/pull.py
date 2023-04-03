@@ -1,5 +1,4 @@
-from interpol import grid_pull as _pull
-from diffeo.flows import add_identity
+from interpol import grid_pull as _pull, add_identity_grid as add_identity
 
 
 def pull(image, flow, bound='dct2', has_identity=False):
@@ -7,7 +6,7 @@ def pull(image, flow, bound='dct2', has_identity=False):
 
     Parameters
     ----------
-    image : (B, *shape_in, C) tensor
+    image : ([B], *shape_in, C) tensor
         Input image.
         If input dtype is integer, assumes labels: each unique labels
         gets warped using linear interpolation, and the label map gets
@@ -25,11 +24,13 @@ def pull(image, flow, bound='dct2', has_identity=False):
 
     Returns
     -------
-    warped : (B, *shape_out, C) tensor
+    warped : ([B], *shape_out, C) tensor
         Warped image
 
     """
     if not has_identity:
         flow = add_identity(flow)
-    image = image.movedim(-1, 1)
-    return _pull(image, flow, bound=bound, interpolation=1, extrapolate=True).movedim(1, -1)
+    ndim = flow.shape[-1]
+    image = image.movedim(-1, -ndim-1)
+    image = _pull(image, flow, bound=bound, interpolation=1, extrapolate=True)
+    return image.movedim(-ndim-1, -1)

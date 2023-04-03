@@ -42,7 +42,7 @@ def laplace(shape, voxel_size=1, dtype=None, device=None):
 
     # Per component + voxel size scaling
     greens = torch.stack([greens]*3, -1)
-    greens *= voxel_size.square()
+    greens /= voxel_size.square()
 
     return greens
 
@@ -101,7 +101,7 @@ def helmoltz(shape, alpha=1e-3, voxel_size=1, dtype=None, device=None):
 
     # Per component + voxel size scaling
     greens = torch.stack([greens]*3, -1)
-    greens *= voxel_size.square()
+    greens /= voxel_size.square()
 
     return greens
 

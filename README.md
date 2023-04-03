@@ -272,7 +272,7 @@ cache : bool or int
 """
 
 Gaussian(fwhm=16, factor=1, voxel_size=1, bound='dft',
-         earnable=False, cache=False): ...
+         learnable=False, cache=False): ...
 """
 Positive semi-definite metric whose Greens function is a Gaussian filter.
 

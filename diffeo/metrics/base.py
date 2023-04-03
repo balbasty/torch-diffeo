@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from torch import nn
 import torch
 from diffeo.dft import FrequencyTransform
+import math
 
 
 class Metric(nn.Module):
@@ -45,51 +46,81 @@ class Metric(nn.Module):
         finally:
             self.cache = cache
 
-    def forward(self, x):
-        """Apply the forward linear operator: v -> Lv"""
-        ft = FrequencyTransform(x.ndim - 2, self.bound, norm='ortho')
+    def forward(self, x, factor=True):
+        """Apply the forward linear operator: v -> Lv
+        v : (..., *spatial, D) tensor
+        """
+        ndim = x.shape[-1]
+        ft = FrequencyTransform(ndim, self.bound)
 
         # Fourier kernel
-        kernel = self.metric_fourier(x)
+        kernel = self.metric_fourier(x, factor=False)
 
         # Fourier transform
-        x = ft.forward(x)
+        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
 
         # Matrix multiply
-        x = x * kernel
+        if kernel.ndim == ndim + 2:
+            # matrix multiply
+            x = torch.complex(
+                kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
+                kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+        else:
+            # pointwise multiply
+            x = x * kernel
 
         # Inverse Fourier transform
-        x = ft.inverse(x)
+        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+
+        # Global factor
+        if factor:
+            x = x * self.factor
 
         return x
 
-    def inverse(self, x):
-        """Apply the inverse (Greens) linear operator: v -> Kv"""
-        ft = FrequencyTransform(x.ndim - 2, self.bound, norm='ortho')
+    def inverse(self, x, factor=True):
+        """Apply the inverse (Greens) linear operator: m -> Km
+        m : (..., *spatial, D) tensor
+        """
+        ndim = x.shape[-1]
+        ft = FrequencyTransform(ndim, self.bound)
 
         # Fourier kernel
-        kernel = self.greens_fourier(x)
+        kernel = self.greens_fourier(x, factor=False)
 
         # Fourier transform
-        x = ft.forward(x)
+        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
 
-        # Matrix multiply
-        x = x * kernel
+        if kernel.ndim == ndim + 2:
+            # matrix multiply
+            x = torch.complex(
+                kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
+                kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
+        else:
+            # pointwise multiply
+            x = x * kernel
 
         # Inverse Fourier transform
-        x = ft.inverse(x)
+        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+
+        # Global factor
+        if factor:
+            x = x / self.factor
 
         return x
 
-    def whiten(self, x):
-        """Apply the inverse square root linear operator: v -> sqrt(K) v"""
-        ft = FrequencyTransform(x.ndim - 2, self.bound, norm='ortho')
+    def whiten(self, x, factor=True):
+        """Apply the inverse square root linear operator: v -> sqrt(K) v
+        v : (..., *spatial, D) tensor
+        """
+        ndim = x.shape[-1]
+        ft = FrequencyTransform(ndim, self.bound)
 
         # Fourier kernel
-        kernel = self.greens_fourier(x)
+        kernel = self.greens_fourier(x, factor=False)
 
         # Square root
-        if kernel.ndim == x.ndim:
+        if kernel.ndim == ndim + 2:
             # SVD
             eigval, eigvec = torch.linalg.eigh(kernel)
             eigvec = eigvec.sqrt()
@@ -101,33 +132,91 @@ class Metric(nn.Module):
             kernel = kernel.sqrt()
 
         # Fourier transform
-        x = ft.forward(x)
+        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
 
-        # Matrix multiply
-        x = x * kernel
+        if kernel.ndim == ndim + 2:
+            # matrix multiply
+            x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
+        else:
+            # pointwise multiply
+            x = x * kernel
 
         # Inverse Fourier transform
-        x = ft.inverse(x)
+        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+
+        # Global factor
+        if factor:
+            x = x / (self.factor ** 0.5)
 
         return x
 
-    def logdet(self, x):
-        """Return the log-determinant of L (times batch size)"""
-        nbatch = len(x)
-        kernel = self.metric_fourier(x)
-        if kernel.ndim == x.ndim:
-            return kernel.logdet().sum() * nbatch
+    def color(self, x, factor=True):
+        """Apply the square root linear operator: m -> sqrt(L) m
+        m : (..., *spatial, D) tensor
+        """
+        ndim = x.shape[-1]
+        ft = FrequencyTransform(ndim, self.bound)
+
+        # Fourier kernel
+        kernel = self.metric_fourier(x, factor=False)
+
+        # Square root
+        if kernel.ndim == ndim + 2:
+            # SVD
+            eigval, eigvec = torch.linalg.eigh(kernel)
+            eigvec = eigvec.sqrt()
+            kernel = eigval.matmul(eigvec.unqueeze(-1) * eigval.tranpose(-1, -2))
+            del eigval, eigvec
         else:
-            return kernel.log().sum() * nbatch
+            assert kernel.ndim in (x.ndim-1, x.ndim-2)
+            # diagonal
+            kernel = kernel.sqrt()
 
-    def greens_kernel(self, x):
+        # Fourier transform
+        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
+
+        if kernel.ndim == ndim + 2:
+            # matrix multiply
+            x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
+        else:
+            # pointwise multiply
+            x = x * kernel
+
+        # Inverse Fourier transform
+        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+
+        # Global factor
+        if factor:
+            x = x * (self.factor ** 0.5)
+
+        return x
+
+    def logdet(self, x, factor=True):
+        """Return the log-determinant of L (times batch size)
+        v : (..., *spatial, D) tensor
+        """
+        ndim = x.shape[-1]
+        batch = x.shape[:-ndim-1]
+        kernel = self.metric_fourier(x, factor=False)
+        if kernel.ndim == ndim + 2:
+            ld = kernel.logdet().sum() * batch.numel()
+        else:
+            ld = kernel.log().sum() * batch.numel()
+        if factor:
+            if torch.is_tensor(self.factor):
+                logfactor = self.factor.log()
+            else:
+                logfactor = math.log(self.factor)
+            ld += x.numel() * logfactor
+
+    def greens_kernel(self, x, factor=True):
         raise NotImplementedError
 
-    def greens_fourier(self, x):
+    def greens_fourier(self, x, factor=True):
         raise NotImplementedError
 
-    def metric_fourier(self, x):
+    def metric_fourier(self, x, factor=True):
         raise NotImplementedError
 
-    def metric_kernel(self, x):
+    def metric_kernel(self, x, factor=True):
         raise NotImplementedError

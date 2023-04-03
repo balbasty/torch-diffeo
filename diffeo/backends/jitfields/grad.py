@@ -31,4 +31,4 @@ def grad(image, flow, bound='dct2', has_identity=False):
     """
     if not has_identity:
         flow = add_identity(flow)
-    return _grad(image, flow, bound=bound, interpolation=1, extrapolate=True)
+    return _grad(image, flow, bound=bound, order=1, extrapolate=True)

@@ -91,17 +91,19 @@ class FrequencyTransform(nn.Module):
     def forward_kernel(self, x):
         dims = list(range(-self.ndim, 0))
         x = torch.fft.ifftshift(x, dims)
+        dtype = x.dtype
         x = self._fwd_ker(x, dim=dims, norm=self.norm)
         if x.is_complex():
             x = x.real
-        x = torch.fft.fftshift(x, dims)
+        x = torch.fft.fftshift(x.to(dtype), dims)
         return x
 
     def inverse_kernel(self, x):
         dims = list(range(-self.ndim, 0))
         x = torch.fft.ifftshift(x, dims)
+        dtype = x.dtype
         x = self._inv_ker(x, dim=dims, norm=self.norm)
         if x.is_complex():
             x = x.real
-        x = torch.fft.fftshift(x, dims)
+        x = torch.fft.fftshift(x.to(dtype), dims)
         return x

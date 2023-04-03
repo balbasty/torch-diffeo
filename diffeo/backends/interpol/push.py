@@ -1,5 +1,8 @@
-from interpol import grid_push as _push, grid_count as _count
-from diffeo.flows import add_identity
+from interpol import (
+    grid_push as _push,
+    grid_count as _count,
+    add_identity_grid as add_identity
+)
 
 
 def push(image, flow, shape=None, bound='dct2', has_identity=False):
@@ -7,7 +10,7 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
 
     Parameters
     ----------
-    image : (B, *shape_in, C) tensor
+    image : ([B], *shape_in, C) tensor
         Input image.
         If input dtype is integer, assumes labels: each unique labels
         gets warped using linear interpolation, and the label map gets
@@ -27,14 +30,16 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
 
     Returns
     -------
-    pushed : (B, *shape_out, C) tensor
+    pushed : ([B], *shape_out, C) tensor
         Pushed image
 
     """
     if not has_identity:
         flow = add_identity(flow)
-    image = image.movedim(-1, 1)
-    return _push(image, flow, shape, bound=bound, order=1, extrapolate=True).movedim(1, -1)
+    ndim = flow.shape[-1]
+    image = image.movedim(-1, -ndim-1)
+    image = _push(image, flow, shape, bound=bound, interpolation=1, extrapolate=True)
+    return image.movedim(-ndim-1, -1)
 
 
 def count(flow, shape=None, bound='dct2', has_identity=False):
@@ -63,4 +68,4 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
     """
     if not has_identity:
         flow = add_identity(flow)
-    return _count(flow, shape, bound=bound, order=1, extrapolate=True).unsqueeze(-1)
+    return _count(flow, shape, bound=bound, interpolation=1, extrapolate=True).unsqueeze(-1)

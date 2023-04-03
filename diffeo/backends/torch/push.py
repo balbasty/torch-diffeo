@@ -37,7 +37,7 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
         flow = sub_identity(flow).neg_()
     dt = jacdet(flow, bound=bound, has_identity=False, add_identity=True)
     flow = add_identity_(flow)
-    image = pull(image, flow, bound=bound, order=1, extrapolate=True, has_identity=True)
+    image = pull(image, flow, bound=bound, has_identity=True)
     image = image * dt.unsqueeze(-1)
     return image
 
