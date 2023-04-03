@@ -2,7 +2,6 @@ import torch
 from diffeo.layers import Shoot, Pull
 from diffeo.metrics import Mixture
 from diffeo.tests.phantoms import circle, letterc
-from diffeo.backends import torch as torch_backend
 import matplotlib.pyplot as plt
 
 
@@ -62,8 +61,8 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=2e-4, nbiter=1024
     fix = fix[None, None]
     mov = mov[None, None]
 
-    exp = Shoot(metric, fast=True, backend=torch_backend)
-    pull = Pull(backend=torch_backend)
+    exp = Shoot(metric, fast=True)
+    pull = Pull()
 
     def penalty(v):
         v = v.movedim(1, -1)
