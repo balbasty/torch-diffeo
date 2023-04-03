@@ -100,12 +100,12 @@ Apply the forward linear operator `L`
 
 Parameters
 ----------
-v : (B, *spatial, D) tensor
+v : (..., *spatial, D) tensor
     A velocity field.
 
 Returns
 -------
-m : (B, *spatial, D) tensor
+m : (..., *spatial, D) tensor
     A momentum field.
 """
 
@@ -115,18 +115,13 @@ Apply the inverse linear operator `K = inv(L)`
 
 Parameters
 ----------
-m : (B, *spatial, D) tensor
+m : (..., *spatial, D) tensor
     A momentum field.
 
 Returns
 -------
-v : (B, *spatial, D) tensor
+v : (..., *spatial, D) tensor
     A velocity field.
-
-Returns
--------
-m : (B, D, *spatial) tensor
-    A momentum field.
 """
 
 metric.whiten(v: Tensor) -> Tensor: ...
@@ -135,12 +130,12 @@ Apply the square root of the inverse linear operator `sqrt(K)`
 
 Parameters
 ----------
-v : (B, *spatial, D) tensor
+v : (..., *spatial, D) tensor
     A velocity field.
     
 Returns
 -------
-x : (B, *spatial, D) tensor
+x : (..., *spatial, D) tensor
     A white field.
 """
 
@@ -150,12 +145,12 @@ Apply the square root of the linear operator `sqrt(L)`
 
 Parameters
 ----------
-x : (B, *spatial, D) tensor
+x : (..., *spatial, D) tensor
     A white field.
 
 Returns
 -------
-v : (B, *spatial, D) tensor
+v : (..., *spatial, D) tensor
     A velocity field.
 """
 
@@ -165,7 +160,7 @@ Compute the log-determinant of the linear operator `logdet(L)`
 
 Parameters
 ----------
-v : (B, *spatial, D) tensor
+v : (..., *spatial, D) tensor
     A velocity field. 
     Its values are not used. Only its shape, dtype and device are used.
     
