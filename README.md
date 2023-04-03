@@ -1,6 +1,34 @@
 # torch-diffeo
 Scaling-and-squaring and Geodesic Shooting layers in PyTorch
 
+## Getting started
+
+This package requires `pytorch >= 1.8` and 
+[`torch-interpol`](https://github.com/balbasty/torch-interpol). 
+We require this version so that pytorch supports complex values and the
+modern `torch.fft` module. To install with pip, simply do:
+```shell
+pip install "torch-diffeo @ git+https://github.com/balbasty/jitfields"
+```
+
+To use the DCT/DST boundary modes (which allow using Neumann or Dirichlet
+boundary conditions), `scipy` is further required. It is bundled with 
+`torch-diffeo` under the `[dct]` tag:
+```shell
+pip install "torch-diffeo[dct] @ git+https://github.com/balbasty/torch-diffeo"
+```
+If you are running the GPU version of pytorch *and* wish to use DCT/DST, 
+`cupy` is further required. Again, it is bundled under the `[cuda]` tag:
+```shell
+pip install "torch-diffeo[dct,cuda] @ git+https://github.com/balbasty/torch-diffeo"
+```
+However, it is in general advised to install both pytorch and cupy using 
+`conda`, thereby minimizing conflicts:
+```shell
+conda install -c pytorch -c conda-forge pytorch cupy scipy cudatoolkit=10.2 
+pip install "torch-diffeo @ git+https://github.com/balbasty/jitfields"
+```
+
 ## Layers
 
 ```python

@@ -6,10 +6,21 @@ __all__ = [
 from torch import nn
 import torch.fft
 from math import floor
-from .dct import *
+try:
+    from .dct import *
+    dct = dct2
+    dst = dst2
+except ImportError:
+    dct = dct1 = dct2 = dct3 = dct4 = idct1 = idct2 = idct3 = idct4 = None
+    dst = dst1 = dst2 = dst3 = dst4 = idst1 = idst2 = idst3 = idst4 = None
 
 dft = torch.fft.fftn
 idft = torch.fft.ifftn
+
+msg_error_dct = """
+DCT/DST require scipy (and, for cuda support, cupy)
+Install torch-diffeo with `pip install "torch-diffeo[dct,cuda]"`
+"""
 
 
 class FrequencyTransform(nn.Module):
@@ -88,6 +99,8 @@ class FrequencyTransform(nn.Module):
             self._inv_ker_off = idst3
         else:
             raise ValueError(f'Unknown bound "{bound}"')
+        if bound != 'dft' and dct is None:
+            raise ValueError(msg_error_dct)
         self.bound = bound
 
     def forward(self, x):
