@@ -259,7 +259,7 @@ def compose_jacobian(jac, rhs, lhs=None, bound='dft', has_identity=False,
         lhs = rhs
     ndim = rhs.shape[-1]
     jac_left = jacobian(lhs, bound=bound, has_identity=has_identity, add_identity=True)
-    jac_left = jac_left.reshape([*jac_left.shape[:-2], ndim*2])
+    jac_left = jac_left.reshape([*jac_left.shape[:-2], ndim*ndim])
     jac_left = backend.pull(jac_left, rhs, bound=bound, has_identity=has_identity)
     jac_left = jac_left.reshape([*jac_left.shape[:-1], ndim, ndim])
     jac = torch.matmul(jac_left, jac)
