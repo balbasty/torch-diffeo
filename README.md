@@ -8,7 +8,7 @@ This package requires `pytorch >= 1.8` and
 We require this version so that pytorch supports complex values and the
 modern `torch.fft` module. To install with pip, simply do:
 ```shell
-pip install "torch-diffeo @ git+https://github.com/balbasty/jitfields"
+pip install "torch-diffeo @ git+https://github.com/balbasty/torch-diffeo"
 ```
 
 To use the DCT/DST boundary modes (which allow using Neumann or Dirichlet
@@ -26,7 +26,7 @@ However, it is in general advised to install both pytorch and cupy using
 `conda`, thereby minimizing conflicts:
 ```shell
 conda install -c pytorch -c conda-forge pytorch cupy scipy cudatoolkit=10.2 
-pip install "torch-diffeo @ git+https://github.com/balbasty/jitfields"
+pip install "torch-diffeo @ git+https://github.com/balbasty/torch-diffeo"
 ```
 
 ## Layers

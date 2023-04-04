@@ -141,7 +141,7 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='dft', rotate_grad=False,
     if rotate_grad:
         # It forces us to perform a forward exponentiation, which
         # is a bit annoying...
-        # Maybe save the Jacobian after the forward pass? But it take space
+        # Maybe save the Jacobian after the forward pass? But it takes space
         _, jac = expjac_forward(vel, steps=steps, bound=bound)
         jac = jac.transpose(-1, -2)
         grad = matvec(jac, grad)
