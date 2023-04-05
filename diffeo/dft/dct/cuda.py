@@ -1,7 +1,13 @@
 from torch.utils.dlpack import to_dlpack, from_dlpack
-import cupy
-import cupyx.scipy.fft as F
 import torch
+from . import _realtransforms as F
+
+try:
+    from cupy import from_dlpack as cupy_from_dlpack, to_dlpack as cupy_to_dlpack
+except ImportError:
+    import cupy
+    from cupy import fromDlpack as cupy_from_dlpack
+    cupy_to_dlpack = cupy.ndarray.toDlpack
 
 
 flipnorm = {'forward': 'backward', 'backward': 'forward', 'ortho': 'ortho'}
@@ -73,9 +79,9 @@ class IDST(torch.autograd.Function):
 
 def to_cupy(x):
     """Convert a torch tensor to cupy without copy"""
-    return cupy.from_dlpack(to_dlpack(x))
+    return cupy_from_dlpack(to_dlpack(x))
 
 
 def from_cupy(x):
     """Convert a cupy tensor to torch without copy"""
-    return from_dlpack(cupy.to_dlpack(x))
+    return from_dlpack(cupy_to_dlpack(x))
