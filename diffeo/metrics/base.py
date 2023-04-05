@@ -73,7 +73,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
 
         # Global factor
         if factor:
@@ -107,7 +107,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
 
         # Global factor
         if factor:
@@ -153,7 +153,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
 
         # Global factor
         if factor:
@@ -199,7 +199,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = ft.inverse(x.movedim(-1, 0)).movedim(0, -1)
+        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
 
         # Global factor
         if factor:
@@ -236,3 +236,9 @@ class Metric(nn.Module):
 
     def metric_kernel(self, x, factor=True):
         raise NotImplementedError
+
+
+def real(x):
+    if x.is_complex():
+        x = x.real
+    return x

@@ -116,16 +116,14 @@ class FrequencyTransform(nn.Module):
     def forward_kernel_dft(self, x):
         dims = list(range(-self.ndim, 0))
         x = torch.fft.ifftshift(x, dims)
-        dtype = x.dtype
         x = real(self._fwd_ker(x, dim=dims, norm=self.norm))
-        return x.to(dtype)
+        return x
 
     def inverse_kernel_dft(self, x):
         dims = list(range(-self.ndim, 0))
         x = torch.fft.ifftshift(x, dims)
-        dtype = x.dtype
         x = real(self._inv_ker(x, dim=dims, norm=self.norm))
-        return x.to(dtype)
+        return x
 
     def forward_kernel(self, x):
         if self.bound == 'dft':
@@ -134,9 +132,8 @@ class FrequencyTransform(nn.Module):
         dims = list(range(-self.ndim, 0))
         x = sympart(x, self.ndim)
         x = torch.fft.ifftshift(x, dims)
-        dtype = x.dtype
         x = kerft(x, self.ndim, self._fwd_ker, self._fwd_ker_off, self.norm)
-        return x.to(dtype)
+        return x
 
     def inverse_kernel(self, x):
         if self.bound == 'dft':
@@ -145,9 +142,8 @@ class FrequencyTransform(nn.Module):
         dims = list(range(-self.ndim, 0))
         x = sympart(x, self.ndim)
         x = torch.fft.ifftshift(x, dims)
-        dtype = x.dtype
         x = kerft(x, self.ndim, self._inv_ker, self._inv_ker_off, self.norm)
-        return x.to(dtype)
+        return x
 
 
 def real(x):
