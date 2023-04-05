@@ -2,11 +2,11 @@
 __all__ = ['exp', 'bch', 'exp_forward', 'exp_backward']
 import torch
 from diffeo.flows import compose, compose_jacobian, jacobian, bracket
-from diffeo.backends import interpol
-from diffeo.linalg import matvec, jhj, fastinv
+from diffeo.backends import default_backend
+from diffeo.linalg import jhj, batchmatvec, batchdet
 
 
-def exp(vel, steps=8, bound='dft', anagrad=False, backend=interpol):
+def exp(vel, steps=8, bound='dft', anagrad=False, backend=default_backend):
     """Exponentiate a stationary velocity field by scaling and squaring.
 
     Parameters
@@ -34,14 +34,14 @@ def exp(vel, steps=8, bound='dft', anagrad=False, backend=interpol):
     return flow
 
 
-def exp_forward(vel, steps=8, bound='dft', backend=interpol):
+def exp_forward(vel, steps=8, bound='dft', backend=default_backend):
     vel = vel / (2**steps)
     for i in range(steps):
         vel = compose(vel, vel, bound=bound, backend=backend)
     return vel
 
 
-def expjac_forward(vel, steps=8, bound='dft', backend=interpol):
+def expjac_forward(vel, steps=8, bound='dft', backend=default_backend):
     ndim = vel.shape[-1]
     vel = vel / (2**steps)
     jac = torch.eye(ndim, dtype=vel.dtype, device=vel.device)
@@ -52,7 +52,7 @@ def expjac_forward(vel, steps=8, bound='dft', backend=interpol):
     return vel, jac
 
 
-def bch(vel_left, vel_right, order=2, bound='dft', backend=interpol):
+def bch(vel_left, vel_right, order=2, bound='dft', backend=default_backend):
     """Find v such that exp(v) = exp(u) o exp(w) using the
     (truncated) Baker–Campbell–Hausdorff formula.
 
@@ -89,7 +89,7 @@ def bch(vel_left, vel_right, order=2, bound='dft', backend=interpol):
 
 
 def exp_backward(vel, grad, hess=None, steps=8, bound='dft', rotate_grad=False,
-                 backend=interpol):
+                 backend=default_backend):
     """Backward pass of SVF exponentiation.
 
     This should be much more memory-efficient than the autograd pass
@@ -136,52 +136,70 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='dft', rotate_grad=False,
         Approximate (block diagonal) Hessian with respect to the SVF
 
     """
-    ndim = vel.shape[-1]
+
+    def pushforward_grad(grad, vel, jac, det):
+        grad = backend.pull(grad, vel, bound=bound)
+        grad = batchmatvec(jac, grad)
+        grad *= det[..., None]
+        return grad
+
+    def pushforward_hess(hess, vel, jac, det):
+        hess = backend.pull(hess, vel, bound=bound)
+        hess = jhj(jac, hess)
+        hess *= det[..., None]
+        return hess
 
     if rotate_grad:
         # It forces us to perform a forward exponentiation, which
         # is a bit annoying...
-        # Maybe save the Jacobian after the forward pass? But it takes space
-        _, jac = expjac_forward(vel, steps=steps, bound=bound)
+        # Maybe save the Jacobian (or phi?) after the forward pass?
+        # ...but it takes space
+        #
+        # 2023/04/05
+        # Replaced expjac with jac(exp), since the latter uses drastically
+        # less memory. Might be a bit less accurate with twisted deformations.
+
+        # _, jac = expjac_forward(vel, steps=steps, bound=bound)
+        jac = exp_forward(vel, steps=steps, bound=bound)
+        jac = jacobian(jac, bound=bound, add_identity=True)
         jac = jac.transpose(-1, -2)
-        grad = matvec(jac, grad)
+        grad = batchmatvec(jac, grad)
         if hess is not None:
             hess = jhj(jac, hess)
         del jac
 
     vel = vel / (-2**steps)
-    jac = jacobian(vel, bound=bound, add_identity=True)
+    jac = jacobian(vel, bound=bound, add_identity=False)
 
     # rotate gradient a bit so that when steps == 0, we get the same
     # gradients as the smalldef case
-    ijac = 2 * torch.eye(ndim, dtype=jac.dtype, device=jac.device) - jac
-    ijac = fastinv(ijac.transpose(-1, -2))
-    grad = matvec(ijac, grad)
-    del ijac
 
-    for _ in range(steps):
-        det = jac.det()
+    # inverse Jacobian
+    jac = jac.neg_()
+    jac.diagonal(0, -1, -2).add_(1)
+    # rotate gradient
+    grad = batchmatvec(jac.transpose(-1, -2), grad)
+    # back to forward Jacobian
+    jac.diagonal(0, -1, -2).sub_(1)
+    jac = jac.neg_()
+    jac.diagonal(0, -1, -2).add_(1)
+
+    for i in range(steps):
+        det = batchdet(jac)
         jac = jac.transpose(-1, -2)
-        grad0 = grad
-        grad = backend.pull(grad, vel, bound=bound)  # \
-        grad = matvec(jac, grad)                     # | push forward
-        grad *= det[..., None]                       # /
-        grad += grad0                                # add all scales (SVF)
+        # pushforward, and add all scales (SVF)
+        grad = pushforward_grad(grad, vel, jac, det).add_(grad)
         if hess is not None:
-            hess0 = hess
-            hess = backend.pull(hess, vel, bound=bound)
-            hess = jhj(jac, hess)
-            hess *= det[..., None]
-            hess += hess0
+            hess = pushforward_hess(hess, vel, jac, det).add_(hess)
         # squaring
         jac = jac.transpose(-1, -2)
         jac = compose_jacobian(jac, vel, bound=bound, backend=backend)
         vel += backend.pull(vel, vel, bound=bound)
+    del jac, det
 
     grad /= (2**steps)
     if hess is not None:
         hess /= (2**steps)
-
     return grad, hess
 
 

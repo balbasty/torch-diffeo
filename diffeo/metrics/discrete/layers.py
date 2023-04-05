@@ -5,7 +5,7 @@ from math import floor
 from typing import Union
 from diffeo.dft import FrequencyTransform
 from diffeo.metrics.base import Metric
-from diffeo.linalg import fastinv
+from diffeo.linalg import batchinv
 from . import kernels, forward
 
 
@@ -187,7 +187,7 @@ class Mixture(Metric):
             with self.no_cache():
                 kernel = self.metric_fourier(x, factor=False)
             if self.is_linearelastic:
-                kernel = fastinv(kernel)
+                kernel = batchinv(kernel)
             else:
                 kernel = kernel.reciprocal()
             self.cachetensor(self._greens_fourier, shape, kernel)

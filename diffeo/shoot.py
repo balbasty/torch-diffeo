@@ -2,7 +2,7 @@
 import torch
 from diffeo.metrics.discrete import Mixture
 from diffeo.backends import interpol
-from diffeo.linalg import matvec, fastinv
+from diffeo.linalg import batchmatvec, batchinv
 from diffeo.flows import jacobian, compose
 
 
@@ -79,29 +79,28 @@ def shoot(vel, metric=default_metric, steps=8, fast=True, verbose=False,
             #   some energy as < v_t, u_t> decreases over time steps.
             jac = jacobian(vel, bound=metric.bound, add_identity=False).neg_()
             jac.diagonal(0, -1, -2).add_(1)
-            mom = matvec(jac.transpose(-1, -2), mom)
+            mom = batchmatvec(jac.transpose(-1, -2), mom)
             mom = backend.push(mom, vel, bound=metric.bound)
         else:
             # push initial momentum using full flow
-            jac = fastinv(jacobian(idisp, bound=metric.bound, add_identity=True))
-            mom = matvec(jac.transpose(-1, -2), mom0)
+            jac = batchinv(jacobian(idisp, bound=metric.bound, add_identity=True))
+            mom = batchmatvec(jac.transpose(-1, -2), mom0)
             mom = backend.push(mom, idisp, bound=metric.bound)
 
         # Convolve with Greens function of L
-        # v_t \gets L^g u_t
+        # v_t <- inv(L) u_t
         vel = metric.inverse(mom)
         vel = vel.div_(steps)
         if verbose:
             print(f'{0.5*steps*(vel*mom).sum().item()/spatial.numel():6g}',
                   end='\n' if not (i % 5) else ' ', flush=True)
 
-        # $\psi \gets \psi \circ (id - \tfrac{1}{T} v)$
-        # JA: I found that simply using
-        # $\psi \gets \psi - \tfrac{1}{T} (D \psi) v$ was not so stable.
+        # psi <- psi o (id - v/T)
+        # JA:
+        #   I found that simply using `psi <- psi - (D psi) v/T`
+        #   was not so stable.
         disp = compose(disp, -vel, bound=metric.bound)
         idisp = compose(vel, idisp, bound=metric.bound)
-        # disp = isub(backend.pull(disp, -vel, bound=metric.bound), vel)
-        # idisp = iadd(backend.pull(vel, idisp, bound=metric.bound), idisp)
 
     if verbose:
         print('')

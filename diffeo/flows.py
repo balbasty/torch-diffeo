@@ -2,6 +2,7 @@ import torch
 from diffeo.utils import cartesian_grid
 from diffeo.diffdiv import diff
 from diffeo.backends import interpol as interpol_backend
+from diffeo.linalg import batchmatvec
 
 
 def add_identity_(flow):
@@ -257,13 +258,18 @@ def compose_jacobian(jac, rhs, lhs=None, bound='dft', has_identity=False,
     """
     if lhs is None:
         lhs = rhs
+    if has_identity:
+        lhs = sub_identity(lhs)
     ndim = rhs.shape[-1]
-    jac_left = jacobian(lhs, bound=bound, has_identity=has_identity, add_identity=True)
-    jac_left = jac_left.reshape([*jac_left.shape[:-2], ndim*ndim])
-    jac_left = backend.pull(jac_left, rhs, bound=bound, has_identity=has_identity)
-    jac_left = jac_left.reshape([*jac_left.shape[:-1], ndim, ndim])
-    jac = torch.matmul(jac_left, jac)
-    return jac
+    jac = jac.transpose(-1, -2)
+    new_jac = torch.empty_like(jac)
+    # NOTE: loop across dimensions to save memory
+    for d in range(ndim):
+        jac_left = diff(lhs[..., d], bound=bound, dim=range(-ndim, 0))
+        jac_left = backend.pull(jac_left, rhs, bound=bound, has_identity=has_identity)
+        jac_left[..., d] += 1
+        new_jac[..., d] = batchmatvec(jac, jac_left)
+    return new_jac.transpose(-1, -2)
 
 
 def bracket(vel_left, vel_right, bound='dft', has_identity=False,

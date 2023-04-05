@@ -1,3 +1,19 @@
+"""
+Linear Algebra utilities.
+
+I found that some torch functions (e.g., `inverse()` or `det()`) where
+not so efficient when applied to large batches of small matrices,
+especially on the GPU (this is not so true on the CPU). I reimplemented
+them using torchscript for 2x2 and 3x3 matrices, and they are much
+faster:
+    - batchdet
+    - batchinv
+    - batchmatvec
+I used to have a `batchmatmul` too, but its speed was not always better
+than `torch.matmul()` (it depended a lot on the striding layout),
+so I removed it.
+"""
+
 import torch
 
 
@@ -17,6 +33,20 @@ def det3(A):
          A[0, 1] * (A[1, 2] * A[2, 0] - A[1, 0] * A[2, 2]) + \
          A[0, 2] * (A[1, 0] * A[2, 1] - A[1, 1] * A[2, 0])
     return dt
+
+
+def batchdet(A):
+    if not A.is_cuda:
+        return A.det()
+    A = A.movedim(-1, 0).movedim(-1, 0)
+    if len(A) == 3:
+        A = det3(A)
+    elif len(A) == 2:
+        A = det2(A)
+    else:
+        assert len(A) == 1
+        A = A.clone()[0, 0]
+    return A
 
 
 @torch.jit.script
@@ -54,29 +84,32 @@ def inv3(A):
     return F
 
 
-def fastinv(A):
+def batchinv(A):
+    if not A.is_cuda:
+        return A.inverse()
     A = A.movedim(-1, 0).movedim(-1, 0)
     if len(A) == 3:
         A = inv3(A)
     elif len(A) == 2:
         A = inv2(A)
     else:
-        raise NotImplementedError
+        assert len(A) == 1
+        A = A.reciprocal()
     A = A.movedim(0, -1).movedim(0, -1)
     return A
 
 
 @torch.jit.script
 def jhj1(jac, hess):
-    # jac should be ordered as (D, B, *spatial)
-    # hess should be ordered as (D, D, B, *spatial)
+    # jac should be ordered as (D, ...)
+    # hess should be ordered as (D, D, ...)
     return jac[0, 0] * jac[0, 0] * hess[0]
 
 
 @torch.jit.script
 def jhj2(jac, hess):
-    # jac should be ordered as (D, B, *spatial)
-    # hess should be ordered as (D, D, B, *spatial)
+    # jac should be ordered as (D, ...)
+    # hess should be ordered as (D, D, ...)
     out = torch.empty_like(hess)
     h00 = hess[0]
     h11 = hess[1]
@@ -93,8 +126,8 @@ def jhj2(jac, hess):
 
 @torch.jit.script
 def jhj3(jac, hess):
-    # jac should be ordered as (D, B, *spatial)
-    # hess should be ordered as (D, D, B, *spatial)
+    # jac should be ordered as (D, ...)
+    # hess should be ordered as (D, D, ...)
     out = torch.empty_like(hess)
     h00 = hess[0]
     h11 = hess[1]
@@ -148,5 +181,47 @@ def jhj(jac, hess):
     else:
         assert ndim == 3
         out = jhj3(jac, hess)
+    out = out.movedim(0, -1)
+    return out
+
+
+@torch.jit.script
+def matvec3(A, v):
+    Av = torch.empty_like(v)
+    Av[0] = A[0, 0] * v[0] + A[0, 1] * v[1] + A[0, 2] * v[2]
+    Av[1] = A[1, 0] * v[0] + A[1, 1] * v[1] + A[1, 2] * v[2]
+    Av[2] = A[2, 0] * v[0] + A[2, 1] * v[1] + A[2, 2] * v[2]
+    return Av
+
+
+@torch.jit.script
+def matvec2(A, v):
+    Av = torch.empty_like(v)
+    Av[0] = A[0, 0] * v[0] + A[0, 1] * v[1]
+    Av[1] = A[1, 0] * v[0] + A[1, 1] * v[1]
+    return Av
+
+
+@torch.jit.script
+def matvec1(A, v):
+    Av = torch.empty_like(v)
+    Av[0] = A[0, 0] * v[0]
+    return Av
+
+
+def batchmatvec(mat, vec):
+    if not mat.is_cuda:
+        return matvec(mat, vec)
+    ndim = mat.shape[-1]
+    vec = vec.movedim(-1, 0)
+    mat = mat.movedim(-1, 0).movedim(-1, 0)
+    if ndim == 1:
+        mv = matvec1
+    elif ndim == 2:
+        mv = matvec2
+    else:
+        assert ndim == 3
+        mv = matvec3
+    out = mv(mat, vec)
     out = out.movedim(0, -1)
     return out
