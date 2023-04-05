@@ -10,9 +10,6 @@ def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
     ----------
     image : (..., *shape_in, C) tensor
         Input image.
-        If input dtype is integer, assumes labels: each unique labels
-        gets warped using linear interpolation, and the label map gets
-        reconstructed by argmax.
     flow : (..., *shape_out, D) tensor
         Displacement field, in voxels.
         Note that the order of the last dimension is inverse of what's
