@@ -8,20 +8,21 @@ import torch
 import interpol
 import matplotlib.pyplot as plt
 
+device = 'cuda'
 shape = [192, 192]
-circ = phantoms.circle(shape)
-letc = phantoms.letterc(shape)
+circ = phantoms.circle(shape, device=device)
+letc = phantoms.letterc(shape, device=device)
 
 plt.figure()
 plt.subplot(1, 2, 1)
-plt.imshow(circ)
+plt.imshow(circ.cpu())
 plt.axis('off')
 plt.subplot(1, 2, 2)
-plt.imshow(letc)
+plt.imshow(letc.cpu())
 plt.axis('off')
 plt.show()
 
-warp = torch.randn([8, 8, 2]).mul_(8)
+warp = torch.randn([8, 8, 2], device=device).mul_(8)
 warp = interpol.resize(
     warp.movedim(-1, 0),
     shape=shape,
@@ -35,13 +36,13 @@ warpc_jit = jitfields_backend.pull(circ[None, :, :, None], warp)[0, :, :, 0]
 
 plt.figure()
 plt.subplot(1, 3, 1)
-plt.imshow(warpc_itrpl)
+plt.imshow(warpc_itrpl.cpu())
 plt.axis('off')
 plt.subplot(1, 3, 2)
-plt.imshow(warpc_jit)
+plt.imshow(warpc_jit.cpu())
 plt.axis('off')
 plt.subplot(1, 3, 3)
-plt.imshow(warpc_torch)
+plt.imshow(warpc_torch.cpu())
 plt.axis('off')
 plt.show()
 
@@ -51,13 +52,13 @@ splatc_jit = jitfields_backend.push(circ[None, :, :, None], warp)[0, :, :, 0]
 
 plt.figure()
 plt.subplot(1, 3, 1)
-plt.imshow(splatc_itrpl, vmin=0, vmax=2)
+plt.imshow(splatc_itrpl.cpu(), vmin=0, vmax=2)
 plt.axis('off')
 plt.subplot(1, 3, 2)
-plt.imshow(splatc_jit, vmin=0, vmax=2)
+plt.imshow(splatc_jit.cpu(), vmin=0, vmax=2)
 plt.axis('off')
 plt.subplot(1, 3, 3)
-plt.imshow(splatc_torch, vmin=0, vmax=2)
+plt.imshow(splatc_torch.cpu(), vmin=0, vmax=2)
 plt.axis('off')
 plt.show()
 
@@ -74,13 +75,13 @@ def to_rgb(x, vmin=-2, vmax=2):
 
 plt.figure()
 plt.subplot(1, 3, 1)
-plt.imshow(to_rgb(gradc_itrpl))
+plt.imshow(to_rgb(gradc_itrpl).cpu())
 plt.axis('off')
 plt.subplot(1, 3, 2)
-plt.imshow(to_rgb(gradc_jit))
+plt.imshow(to_rgb(gradc_jit).cpu())
 plt.axis('off')
 plt.subplot(1, 3, 3)
-plt.imshow(to_rgb(gradc_torch))
+plt.imshow(to_rgb(gradc_torch).cpu())
 plt.axis('off')
 plt.show()
 

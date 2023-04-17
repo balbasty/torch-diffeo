@@ -16,7 +16,8 @@ def to_rgb(x):
     return tmp
 
 
-def register(fix=None, mov=None, metric=None, hilbert=True, lr=2e-4, nbiter=1024):
+def register(fix=None, mov=None, metric=None, hilbert=True,
+             lr=1e-2, nbiter=256, bound='circulant', device='cuda'):
     """Register two images by minimizing the squared differences.
 
     .. The deformation is encoded by a geodesic.
@@ -40,21 +41,21 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=2e-4, nbiter=1024
 
     """
     if fix is None:
-        fix = letterc([192, 192])
+        fix = letterc([192, 192], device=device)
     if mov is None:
-        mov = circle([192, 192])
+        mov = circle([192, 192], device=device)
+    fix, mov = fix.to(device=device), mov.to(device=device)
     if metric is None:
         metric = Mixture(
             absolute=1e-4,
-            # membrane=1e-3,
-            membrane=0.2,
-            # bending=0.2,
-            # lame_shears=0.05,
-            # lame_div=0.2,
+            membrane=1e-3,
+            bending=0.2,
+            lame_shears=0.05,
+            lame_div=0.2,
             factor=0.1,
-            use_diff=False,
+            use_diff=True,
             cache=True,
-            bound='dst2',
+            bound=bound,
         )
 
     vel = mov.new_zeros([1, fix.ndim, *fix.shape], requires_grad=True)
@@ -80,23 +81,38 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=2e-4, nbiter=1024
         with torch.no_grad():
             if hilbert:
                 vel.grad = metric.inverse(vel.grad.movedim(1, -1)).movedim(-1, 1)
+            ok = False
             vel.sub_(vel.grad, alpha=lr)
+            for nls in range(12):
+                phi = exp(vel)
+                wrp = pull(mov, phi)
+                new_loss = (wrp-fix).square().sum()
+                new_loss += penalty(vel)
+                if new_loss < loss:
+                    ok = True
+                    lr *= 2
+                    break
+                lr /= 2
+                vel.add_(vel.grad, alpha=lr)
+            if not ok:
+                print('converged?')
+                break
 
-        print(f'{n:03d} | {loss.item()/mov.ndim:6.3g}', end='\r')
+        print(f'{n:03d} | {loss.item()/mov.ndim:6.3g} | lr = {lr:6.3g}', end='\r')
 
-        if n % 64: continue
+        if n % 8: continue
         print('')
         plt.subplot(2, 2, 1)
-        plt.imshow(fix.squeeze(), vmin=0, vmax=1)
+        plt.imshow(fix.squeeze().cpu(), vmin=0, vmax=1)
         plt.axis('off')
         plt.subplot(2, 2, 2)
-        plt.imshow(mov.squeeze(), vmin=0, vmax=1)
+        plt.imshow(mov.squeeze().cpu(), vmin=0, vmax=1)
         plt.axis('off')
         plt.subplot(2, 2, 3)
-        plt.imshow(wrp.detach().squeeze(), vmin=0, vmax=1)
+        plt.imshow(wrp.detach().squeeze().cpu(), vmin=0, vmax=1)
         plt.axis('off')
         plt.subplot(2, 2, 4)
-        plt.imshow(to_rgb(vel.detach()).squeeze())
+        plt.imshow(to_rgb(vel.detach()).squeeze().cpu())
         plt.axis('off')
         plt.show()
 

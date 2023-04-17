@@ -16,7 +16,8 @@ def to_rgb(x):
     return tmp
 
 
-def register(fix=None, mov=None, metric=None, hilbert=True, lr=1e-3, nbiter=256):
+def register(fix=None, mov=None, metric=None, hilbert=True,
+             lr=1e-4, nbiter=320, bound='circulant', device=None):
     """Register two images by minimizing the squared differences.
 
     .. The deformation is encoded by a stationary velocity field.
@@ -37,12 +38,16 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=1e-3, nbiter=256)
         Learning rate.
     nbiter : int
         Number of gradient descent iterations.
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+        Boundary conditions
+    device : torch.device
 
     """
     if fix is None:
-        fix = letterc([192, 192])
+        fix = letterc([192, 192], device=device)
     if mov is None:
-        mov = circle([192, 192])
+        mov = circle([192, 192], device=device)
+    fix, mov = fix.to(device=device), mov.to(device=device)
     if metric is None:
         metric = Mixture(
             absolute=1e-3,
@@ -51,13 +56,13 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=1e-3, nbiter=256)
             factor=1e-2,
             use_diff=True,
             cache=True,
-            bound='dst2')
+            bound=bound)
 
     vel = mov.new_zeros([1, fix.ndim, *fix.shape], requires_grad=True)
     fix = fix[None, None]
     mov = mov[None, None]
 
-    exp = Exp(anagrad=True, bound='dct2')
+    exp = Exp(anagrad=True, bound=bound)
     pull = Pull()
 
     def penalty(v):
@@ -83,16 +88,16 @@ def register(fix=None, mov=None, metric=None, hilbert=True, lr=1e-3, nbiter=256)
         if n % 16: continue
         print('')
         plt.subplot(2, 2, 1)
-        plt.imshow(fix.squeeze(), vmin=0, vmax=1)
+        plt.imshow(fix.squeeze().cpu(), vmin=0, vmax=1)
         plt.axis('off')
         plt.subplot(2, 2, 2)
-        plt.imshow(mov.squeeze(), vmin=0, vmax=1)
+        plt.imshow(mov.squeeze().cpu(), vmin=0, vmax=1)
         plt.axis('off')
         plt.subplot(2, 2, 3)
-        plt.imshow(wrp.detach().squeeze(), vmin=0, vmax=1)
+        plt.imshow(wrp.detach().squeeze().cpu(), vmin=0, vmax=1)
         plt.axis('off')
         plt.subplot(2, 2, 4)
-        plt.imshow(to_rgb(vel.detach()).squeeze())
+        plt.imshow(to_rgb(vel.detach()).squeeze().cpu())
         plt.axis('off')
         plt.show()
 
