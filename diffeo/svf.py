@@ -5,8 +5,7 @@ from diffeo.flows import compose, compose_jacobian, jacobian, bracket
 from diffeo.backends import default_backend
 from diffeo.linalg import jhj, batchmatvec, batchdet
 
-
-def exp(vel, steps=8, bound='dft', anagrad=False, backend=default_backend):
+def exp(vel, steps=8, bound='circulant', anagrad=False, backend=default_backend):
     """Exponentiate a stationary velocity field by scaling and squaring.
 
     Parameters
@@ -16,7 +15,7 @@ def exp(vel, steps=8, bound='dft', anagrad=False, backend=default_backend):
     steps : int, default=8
         Number of scaling and squaring steps
         (corresponding to 2**steps integration steps).
-    bound : str, default='dft'
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary conditions
     anagrad : bool, default=False
         Use analytical gradients rather than autodiff gradients in
@@ -34,14 +33,14 @@ def exp(vel, steps=8, bound='dft', anagrad=False, backend=default_backend):
     return flow
 
 
-def exp_forward(vel, steps=8, bound='dft', backend=default_backend):
+def exp_forward(vel, steps=8, bound='circulant', backend=default_backend):
     vel = vel / (2**steps)
     for i in range(steps):
         vel = compose(vel, vel, bound=bound, backend=backend)
     return vel
 
 
-def expjac_forward(vel, steps=8, bound='dft', backend=default_backend):
+def expjac_forward(vel, steps=8, bound='circulant', backend=default_backend):
     ndim = vel.shape[-1]
     vel = vel / (2**steps)
     jac = torch.eye(ndim, dtype=vel.dtype, device=vel.device)
@@ -52,7 +51,7 @@ def expjac_forward(vel, steps=8, bound='dft', backend=default_backend):
     return vel, jac
 
 
-def bch(vel_left, vel_right, order=2, bound='dft', backend=default_backend):
+def bch(vel_left, vel_right, order=2, bound='circulant', backend=default_backend):
     """Find v such that exp(v) = exp(u) o exp(w) using the
     (truncated) Baker–Campbell–Hausdorff formula.
 
@@ -88,7 +87,7 @@ def bch(vel_left, vel_right, order=2, bound='dft', backend=default_backend):
     return vel
 
 
-def exp_backward(vel, grad, hess=None, steps=8, bound='dft', rotate_grad=False,
+def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', rotate_grad=False,
                  backend=default_backend):
     """Backward pass of SVF exponentiation.
 
@@ -123,7 +122,7 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='dft', rotate_grad=False,
         Symmetric hessian with respect to the output grid.
     steps : int, default=8
         Number of scaling and squaring steps
-    bound : str, default='dft'
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
     rotate_grad : bool, default=False
         If True, rotate the gradients using the Jacobian of exp(vel).

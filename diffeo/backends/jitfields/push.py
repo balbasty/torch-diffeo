@@ -1,5 +1,8 @@
 from jitfields.pushpull import push as _push, count as _count
 from diffeo.flows import add_identity
+from diffeo.utils import ensure_list
+from diffeo.bounds import bound2dft
+import torch
 
 
 def push(image, flow, shape=None, bound='dct2', has_identity=False):
@@ -27,7 +30,20 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
     """
     if not has_identity:
         flow = add_identity(flow)
-    return _push(image, flow, shape, bound=bound, order=1, extrapolate=True)
+    ndim = flow.shape[-1]
+    if bound == 'sliding':
+        assert image.shape[-1] == ndim
+        image, image0 = [], image
+        for d in range(ndim):
+            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
+            image.append(_push(
+                image0[..., d:d+1], flow, shape,
+                bound=bound, order=1, extrapolate=True))
+        return torch.cat(image, dim=-1)
+    else:
+        bound = ensure_list(bound, ndim)
+        bound = list(map(lambda x: bound2dft.get(x, x), bound))
+        return _push(image, flow, shape, bound=bound, order=1, extrapolate=True)
 
 
 def count(flow, shape=None, bound='dct2', has_identity=False):
@@ -53,4 +69,16 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
     """
     if not has_identity:
         flow = add_identity(flow)
-    return _count(flow, shape, bound=bound, order=1, extrapolate=True).unsqueeze(-1)
+    ndim = flow.shape[-1]
+    if bound == 'sliding':
+        image = []
+        for d in range(ndim):
+            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
+            image.append(_count(
+                flow, shape,
+                bound=bound, order=1, extrapolate=True))
+        return torch.stack(image, dim=-1)
+    else:
+        bound = ensure_list(bound, ndim)
+        bound = list(map(lambda x: bound2dft.get(x, x), bound))
+        return _count(flow, shape, bound=bound, order=1, extrapolate=True).unsqueeze(-1)

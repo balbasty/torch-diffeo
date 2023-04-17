@@ -20,7 +20,7 @@ class Mixture(Metric):
     """
 
     def __init__(self, absolute=0, membrane=0, bending=0, lame_shears=0, lame_div=0,
-                 factor=1, voxel_size=1, bound='dft', use_diff=True,
+                 factor=1, voxel_size=1, bound='circulant', use_diff=True,
                  learnable=False, cache=False):
         """
         Parameters
@@ -39,7 +39,7 @@ class Mixture(Metric):
             Global regularization factor (optionally: learnable)
         voxel_size : list[float]
             Voxel size
-        bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+        bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions
         use_diff : bool
             Use finite differences to perform the forward pass.

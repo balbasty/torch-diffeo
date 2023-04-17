@@ -8,11 +8,11 @@ from diffeo.flows import compose
 class Exp(nn.Module):
     """Exponentiate a Stationary Velocity Field"""
 
-    def __init__(self, bound='dft', steps=8, anagrad=False, backend=None):
+    def __init__(self, bound='circulant', steps=8, anagrad=False, backend=None):
         """
         Parameters
         ----------
-        bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+        bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions.
         steps : int
             Number of scaling and squaring steps.
@@ -24,13 +24,15 @@ class Exp(nn.Module):
 
         Notes
         -----
-        .. The number of equivalent Euler integration steps is `2**steps`
-        .. Analytical gradients use less memory than autograd gradients,
-            as they do not require storing intermediate time steps during
-            scaling and squaring. However, they may be slightly less accurate.
-        .. In differential equation terms, autograd corresponds to the
-            strategy "discretize then optimize", whereas analytical gradients
-            correspond to the strategy "optimize then discretize".
+        The number of equivalent Euler integration steps is `2**steps`
+
+        Analytical gradients use less memory than autograd gradients,
+        as they do not require storing intermediate time steps during
+        scaling and squaring. However, they may be slightly less accurate.
+
+        In differential equation terms, autograd corresponds to the
+        strategy "discretize then optimize", whereas analytical gradients
+        correspond to the strategy "optimize then discretize".
         """
         super().__init__()
         self.bound = bound
@@ -55,11 +57,11 @@ class BCH(nn.Module):
     https://en.wikipedia.org/wiki/BCH_formula
     """
 
-    def __init__(self, bound='dft', order=2, backend=None):
+    def __init__(self, bound='circulant', order=2, backend=None):
         """
         Parameters
         ----------
-        bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+        bound : {{'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions.
         order : int
             Maximum order used in the BCH series
@@ -148,7 +150,7 @@ class ShootBoth(nn.Module):
 class Compose(nn.Module):
     """Compose two displacement fields"""
 
-    def __init__(self, bound='dft', backend=None):
+    def __init__(self, bound='circulant', backend=None):
         super().__init__()
         self.bound = bound
         self.backend = backend or default_backend

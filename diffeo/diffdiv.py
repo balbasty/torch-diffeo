@@ -229,6 +229,7 @@ def diff(x, order=1, dim=-1, voxel_size=1, side='c', bound='dct2', out=None):
     nb_dim = max(len(dim), len(voxel_size))
     dim = ensure_list(dim, nb_dim)
     voxel_size = ensure_list(voxel_size, nb_dim)
+    bound = ensure_list(bound, nb_dim)
 
     # compute diffs in each dimension
     if out is not None:
@@ -237,8 +238,8 @@ def diff(x, order=1, dim=-1, voxel_size=1, side='c', bound='dct2', out=None):
     else:
         diffs = x.new_empty([nb_dim, *x.shape])
     # ^ ensures that sliced dim is the least rapidly changing one
-    for i, (d, v) in enumerate(zip(dim, voxel_size)):
-        diff1d(x, order, d, v, side, bound, out=diffs[i])
+    for i, (d, v, b) in enumerate(zip(dim, voxel_size, bound)):
+        diff1d(x, order, d, v, side, b, out=diffs[i])
     diffs = diffs.movedim(0, -1)
 
     # return
@@ -504,6 +505,7 @@ def div(x, order=1, dim=-1, voxel_size=1, side='f', bound='dct2', out=None):
     nb_dim = max(len(dim), len(voxel_size))
     dim = ensure_list(dim, nb_dim)
     voxel_size = ensure_list(voxel_size, nb_dim)
+    bound = ensure_list(bound, nb_dim)
 
     if has_last and x.shape[-1] != nb_dim:
         raise ValueError('Last dimension of `x` should be {} but got {}'
@@ -514,7 +516,7 @@ def div(x, order=1, dim=-1, voxel_size=1, side='f', bound='dct2', out=None):
     # compute divergence in each dimension
     div = out.view(x.shape[:-1]).zero_() if out is not None else 0
     tmp = torch.zeros_like(x[..., 0])
-    for diff, d, v in zip(x.unbind(-1), dim, voxel_size):
-        div += div1d(diff, order, d, v, side, bound, out=tmp)
+    for diff, d, v, b in zip(x.unbind(-1), dim, voxel_size, bound):
+        div += div1d(diff, order, d, v, side, b, out=tmp)
 
     return div

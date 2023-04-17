@@ -1,8 +1,9 @@
 import torch
-from diffeo.utils import cartesian_grid
+from diffeo.utils import cartesian_grid, ensure_list
 from diffeo.diffdiv import diff
 from diffeo.backends import interpol as interpol_backend
 from diffeo.linalg import batchmatvec
+from diffeo.bounds import bound2dft
 
 
 def add_identity_(flow):
@@ -140,7 +141,7 @@ def affine_field(affine, shape, add_identity=False):
     return flow
 
 
-def jacobian(flow, bound='dft', voxel_size=1,
+def jacobian(flow, bound='circulant', voxel_size=1,
              has_identity=False, add_identity=None):
     """Compute the Jacobian of a transformation field
 
@@ -148,7 +149,7 @@ def jacobian(flow, bound='dft', voxel_size=1,
     ----------
     flow : (..., *spatial, dim) tensor
         Transformation or displacement field
-    bound : str, default='dft'
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
     voxel_size : [sequence of] float, default=1
         Voxel size
@@ -165,11 +166,19 @@ def jacobian(flow, bound='dft', voxel_size=1,
         Jacobian. In each matrix: jac[i, j] = d psi[i] / d xj
 
     """
-    dim = flow.shape[-1]
+    ndim = flow.shape[-1]
     if has_identity:
         flow = sub_identity(flow)
-    dims = list(range(-dim-1, -1))
-    jac = diff(flow, dim=dims, bound=bound, voxel_size=voxel_size, side='c')
+    if bound == 'sliding':
+        dims = list(range(-ndim, 0))
+        jac = flow.new_zeros([*flow.shape, ndim])
+        for d in range(ndim):
+            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
+            jac[..., d] = diff(flow[..., d], dim=dims, bound=bound, voxel_size=voxel_size, side='c')
+    else:
+        bound = list(map(lambda x: bound2dft.get(x, x), ensure_list(bound, ndim)))
+        dims = list(range(-ndim-1, -1))
+        jac = diff(flow, dim=dims, bound=bound, voxel_size=voxel_size, side='c')
     if add_identity is None:
         add_identity = has_identity
     if add_identity:
@@ -177,7 +186,7 @@ def jacobian(flow, bound='dft', voxel_size=1,
     return jac
 
 
-def jacdet(flow, bound='dft', voxel_size=1,
+def jacdet(flow, bound='circulant', voxel_size=1,
            has_identity=False, add_identity=True):
     """Compute the determinant of the Jacobian of a transformation field
 
@@ -185,7 +194,7 @@ def jacdet(flow, bound='dft', voxel_size=1,
     ----------
     flow : (..., *spatial, dim) tensor
         Transformation or displacement field
-    bound : str, default='dft'
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
     voxel_size : [sequence of] float, default=1
         Voxel size
@@ -212,13 +221,14 @@ def jacdet(flow, bound='dft', voxel_size=1,
     return jac.det()
 
 
-def compose(flow_left, flow_right, bound='dft', has_identity=False, backend=interpol_backend):
+def compose(flow_left, flow_right, bound='circulant', has_identity=False, backend=interpol_backend):
     """Compute flow_left o flow_right
 
     Parameters
     ----------
     flow_left : (..., *shape, D) tensor
     flow_right : (..., *shape, D) tensor
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
     has_identity : bool, default=False
     backend : module
 
@@ -237,7 +247,7 @@ def compose(flow_left, flow_right, bound='dft', has_identity=False, backend=inte
     return flow
 
 
-def compose_jacobian(jac, rhs, lhs=None, bound='dft', has_identity=False,
+def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
                      backend=interpol_backend):
     """Jacobian of the composition `(lhs)o(rhs)`
 
@@ -246,9 +256,14 @@ def compose_jacobian(jac, rhs, lhs=None, bound='dft', has_identity=False,
     jac : (..., *spatial, ndim, ndim) tensor
         Jacobian of input RHS transformation
     rhs : (..., *spatial, ndim) tensor
-        RHS transformation
+        Right-hand side transformation
     lhs : (..., *spatial, ndim) tensor, default=`rhs`
-        LHS small displacement
+        Left-hand side small displacement
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+        Boundary condition
+    has_identity : bool, default=False
+        Whether the leht-hand side is a transformation (True) or
+        displacement (False) field.
 
     Returns
     -------
@@ -263,8 +278,13 @@ def compose_jacobian(jac, rhs, lhs=None, bound='dft', has_identity=False,
     ndim = rhs.shape[-1]
     jac = jac.transpose(-1, -2)
     new_jac = torch.empty_like(jac)
+    is_sliding = isinstance(bound, str) and bound[0].lower() == 's'
+    if not is_sliding:
+        bound = list(map(lambda x: bound2dft.get(x, x), ensure_list(bound, ndim)))
     # NOTE: loop across dimensions to save memory
     for d in range(ndim):
+        if is_sliding:
+            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
         jac_left = diff(lhs[..., d], bound=bound, dim=range(-ndim, 0))
         jac_left = backend.pull(jac_left, rhs, bound=bound, has_identity=has_identity)
         jac_left[..., d] += 1
@@ -272,7 +292,7 @@ def compose_jacobian(jac, rhs, lhs=None, bound='dft', has_identity=False,
     return new_jac.transpose(-1, -2)
 
 
-def bracket(vel_left, vel_right, bound='dft', has_identity=False,
+def bracket(vel_left, vel_right, bound='circulant', has_identity=False,
             backend=interpol_backend):
     """Compute the Lie bracket of two SVFs
 
@@ -280,6 +300,7 @@ def bracket(vel_left, vel_right, bound='dft', has_identity=False,
     ----------
     vel_left : (..., *shape, D) tensor
     vel_right : (..., *shape, D) tensor
+    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
     has_identity : bool, default=False
     backend : module
 

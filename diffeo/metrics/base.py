@@ -7,7 +7,7 @@ import math
 
 class Metric(nn.Module):
 
-    def __init__(self, factor=1, voxel_size=1, bound='dft',
+    def __init__(self, factor=1, voxel_size=1, bound='circulant',
                  learnable=False, cache=False):
         """
         Parameters
@@ -16,7 +16,7 @@ class Metric(nn.Module):
             Regularization factor
         voxel_size : list[float]
             Voxel size
-        bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+        bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions
         learnable : bool
             Make `factor` a learnable parameter
@@ -57,7 +57,7 @@ class Metric(nn.Module):
         kernel = self.metric_fourier(x, factor=False)
 
         # Fourier transform
-        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
+        x = ft.forward(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1)
 
         # Matrix multiply
         if kernel.ndim == ndim + 2:
@@ -73,7 +73,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
+        x = real(ft.inverse(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1))
 
         # Global factor
         if factor:
@@ -92,7 +92,7 @@ class Metric(nn.Module):
         kernel = self.greens_fourier(x, factor=False)
 
         # Fourier transform
-        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
+        x = ft.forward(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1)
 
         if kernel.ndim == ndim + 2:
             # matrix multiply
@@ -107,7 +107,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
+        x = real(ft.inverse(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1))
 
         # Global factor
         if factor:
@@ -138,7 +138,7 @@ class Metric(nn.Module):
             kernel = kernel.sqrt()
 
         # Fourier transform
-        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
+        x = ft.forward(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1)
 
         if kernel.ndim == ndim + 2:
             # matrix multiply
@@ -153,7 +153,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
+        x = real(ft.inverse(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1))
 
         # Global factor
         if factor:
@@ -184,7 +184,7 @@ class Metric(nn.Module):
             kernel = kernel.sqrt()
 
         # Fourier transform
-        x = ft.forward(x.movedim(-1, 0)).movedim(0, -1)
+        x = ft.forward(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1)
 
         if kernel.ndim == ndim + 2:
             # matrix multiply
@@ -199,7 +199,7 @@ class Metric(nn.Module):
             x = x * kernel
 
         # Inverse Fourier transform
-        x = real(ft.inverse(x.movedim(-1, 0)).movedim(0, -1))
+        x = real(ft.inverse(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1))
 
         # Global factor
         if factor:

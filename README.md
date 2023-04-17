@@ -32,12 +32,12 @@ pip install "torch-diffeo @ git+https://github.com/balbasty/torch-diffeo"
 ## Layers
 
 ```python
-Exp(bound='dft', steps=8, anagrad=False): ...
+Exp(bound='circulant', steps=8, anagrad=False): ...
 """Exponentiate a Stationary Velocity Field
 
 Parameters
 ----------
-bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
 steps : int
     Number of scaling and squaring steps.
@@ -55,7 +55,7 @@ https://en.wikipedia.org/wiki/BCH_formula
     
 Parameters
 ----------
-bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
 order : int
     Maximum order used in the BCH series
@@ -81,7 +81,7 @@ Compose(bound='dft'): ...
 
 Parameters
 ----------
-bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
 """
 
@@ -228,7 +228,7 @@ factor : float
     Global regularization factor (optionally: learnable)
 voxel_size : list[float]
     Voxel size
-bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 use_diff : bool
     Use finite differences to perform the forward pass.
@@ -258,7 +258,7 @@ factor : float
     Regularization factor (optionally: learnable)
 voxel_size : list[float]
     Voxel size
-bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 learnable : bool
     Make `factor` a learnable parameter
@@ -286,7 +286,7 @@ alpha : float
     It is the square of the eigenvalue in the Helmoltz equation.
 voxel_size : list[float]
     Voxel size
-bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 learnable : bool
     Make `factor` a learnable parameter
@@ -308,7 +308,7 @@ factor : float
     Global regularization factor (optionally: learnable)
 voxel_size : list[float]
     Voxel size
-bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 learnable : bool or {'factor', 'fwhm', 'fwhm+factor}
     Make `factor` and/or 'fwhm' a learnable parameter.

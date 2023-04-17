@@ -89,8 +89,8 @@ def _get_dct_norm_factor(n, inorm, dct_type=2):
         Data size.
     inorm : {'none', 'sqrt', 'full'}
         When `inorm` is 'none', the scaling factor is 1.0 (unnormalized). When
-        `inorm` is 1, scaling by ``1/sqrt(d)`` as needed for an orthogonal
-        transform is used. When `inorm` is 2, normalization by ``1/d`` is
+        `inorm` is 'sqrt', scaling by ``1/sqrt(d)`` as needed for an orthogonal
+        transform is used. When `inorm` is 'full', normalization by ``1/d`` is
         applied. The value of ``d`` depends on both `n` and the `dct_type`.
     dct_type : {1, 2, 3, 4}
         Which type of DCT or DST is being normalized?.
@@ -224,7 +224,7 @@ def _dct_or_dst_type2(
         sl0 = [slice(None)] * x.ndim
         sl0[axis] = slice(1)
         x[tuple(sl0)] *= math.sqrt(2) * 0.5
-    return x
+    return cupy.copy(x)  # /!\ (YB) Copy needed for correct conversion to torch
 
 
 def _reshuffle_dct3(y, n, axis, dst):
@@ -290,8 +290,8 @@ def _dct_or_dst_type3(
     axis : int
         Axis along which the transform is applied.
     forward : bool
-        Set true to indicate that this is a forward DCT-II as opposed to an
-        inverse DCT-III (The difference between the two is only in the
+        Set true to indicate that this is a forward DCT-III as opposed to an
+        inverse DCT-II (The difference between the two is only in the
         normalization factor).
     norm : {None, 'ortho', 'forward', 'backward'}
         The normalization convention to use.
@@ -365,98 +365,100 @@ def _dct_or_dst_type3(
     return _reshuffle_dct3(x, n, axis, dst)
 
 
-# def _dct_type1(
-#     x, n=None, axis=-1, norm=None, forward=True, overwrite_x=False
-# ):
-#     if axis < -x.ndim or axis >= x.ndim:
-#         raise numpy.AxisError('axis out of range')
-#     if axis < 0:
-#         axis += x.ndim
-#     if n is not None and n < 1:
-#         raise ValueError(
-#             f'invalid number of data points ({n}) specified'
-#         )
-#
-#     x = _cook_shape(x, (n,), (axis,), 'R2R')
-#     n = x.shape[axis]
-#
-#     # replicate signal
-#     slicer_post = [slice(None)] * x.ndim
-#     slicer_post[axis] = slice(-2, 0, -1)
-#     x_post = x[tuple(slicer_post)]
-#     x = cupy.concatenate([x, x_post], axis=axis)
-#
-#     # determine normalization factor
-#     if norm == 'ortho':
-#         inorm = 'sqrt'
-#     elif norm == 'forward':
-#         inorm = 'full' if forward else 'none'
-#     elif norm == 'backward' or norm is None:
-#         inorm = 'none' if forward else 'full'
-#     else:
-#         raise ValueError(f'Invalid norm value "{norm}", should be "backward", '
-#                          '"ortho" or "forward"')
-#     norm_factor = _get_dct_norm_factor(n, inorm=inorm, dct_type=1)
-#     x *= norm_factor
-#
-#     # fft
-#     x = _fft.fft(x, n=2*(n+1), axis=axis, overwrite_x=True)
-#     slicer_pre = [slice(None)] * x.ndim
-#     slicer_pre[axis] = slice(n)
-#     x = cupy.real(x[tuple(slicer_pre)])
-#
-#     return x
-#
-#
-# def _dst_type1(
-#         x, n=None, axis=-1, norm=None, forward=True, overwrite_x=False
-# ):
-#     if axis < -x.ndim or axis >= x.ndim:
-#         raise numpy.AxisError('axis out of range')
-#     if axis < 0:
-#         axis += x.ndim
-#     if n is not None and n < 1:
-#         raise ValueError(
-#             f'invalid number of data points ({n}) specified'
-#         )
-#
-#     x = _cook_shape(x, (n,), (axis,), 'R2R')
-#     n = x.shape[axis]
-#
-#     # replicate signal
-#     slicer_pre = [slice(None)] * x.ndim
-#     slicer_pre[axis] = slice(1, n+1)
-#     slicer_post = [slice(None)] * x.ndim
-#     slicer_post[axis] = slice(-2, n+1, -1)
-#     bigshape = list(x.shape)
-#     bigshape[axis] = 2*(n+1)
-#     tmp = x
-#     x = cupy.zeros_like(x, shape=bigshape)
-#     x[tuple(slicer_pre)] = tmp
-#     x[tuple(slicer_post)] = tmp
-#     x[tuple(slicer_post)] *= -1
-#     del tmp
-#
-#     # determine normalization factor
-#     if norm == 'ortho':
-#         inorm = 'sqrt'
-#     elif norm == 'forward':
-#         inorm = 'full' if forward else 'none'
-#     elif norm == 'backward' or norm is None:
-#         inorm = 'none' if forward else 'full'
-#     else:
-#         raise ValueError(f'Invalid norm value "{norm}", should be "backward", '
-#                          '"ortho" or "forward"')
-#     norm_factor = _get_dct_norm_factor(n, inorm=inorm, dct_type=1)
-#     x *= norm_factor
-#
-#     # fft
-#     x = _fft.fft(x, n=2 * (n - 1), axis=axis, overwrite_x=True)
-#     slicer_pre = [slice(None)] * x.ndim
-#     slicer_pre[axis] = slice(n)
-#     x = cupy.real(x[tuple(slicer_pre)])
-#
-#     return x
+def _dct_type1(
+    x, n=None, axis=-1, norm=None, forward=True, overwrite_x=False
+):
+    if axis < -x.ndim or axis >= x.ndim:
+        raise numpy.AxisError('axis out of range')
+    if axis < 0:
+        axis += x.ndim
+    if n is not None and n < 1:
+        raise ValueError(
+            f'invalid number of data points ({n}) specified'
+        )
+
+    x = _cook_shape(x, (n,), (axis,), 'R2R')
+    n = x.shape[axis]
+
+    # replicate signal
+    slicer_post = [slice(None)] * x.ndim
+    slicer_post[axis] = slice(-2, 0, -1)
+    x_post = x[tuple(slicer_post)]
+    x = cupy.concatenate([x, x_post], axis=axis)
+
+    # determine normalization factor
+    if norm == 'ortho':
+        inorm = 'sqrt'
+    elif norm == 'forward':
+        inorm = 'full' if forward else 'none'
+    elif norm == 'backward' or norm is None:
+        inorm = 'none' if forward else 'full'
+    else:
+        raise ValueError(f'Invalid norm value "{norm}", should be "backward", '
+                         '"ortho" or "forward"')
+    norm_factor = _get_dct_norm_factor(n, inorm=inorm, dct_type=1)
+
+    # fft
+    x = _fft.fft(x, n=2*(n-1), axis=axis, overwrite_x=True)
+    slicer_pre = [slice(None)] * x.ndim
+    slicer_pre[axis] = slice(n)
+    x = cupy.real(x[tuple(slicer_pre)])
+    x *= norm_factor
+
+    return cupy.copy(x)  # /!\ (YB) Copy needed for correct conversion to torch
+
+
+def _dst_type1(
+        x, n=None, axis=-1, norm=None, forward=True, overwrite_x=False
+):
+    if axis < -x.ndim or axis >= x.ndim:
+        raise numpy.AxisError('axis out of range')
+    if axis < 0:
+        axis += x.ndim
+    if n is not None and n < 1:
+        raise ValueError(
+            f'invalid number of data points ({n}) specified'
+        )
+
+    x = _cook_shape(x, (n,), (axis,), 'R2R')
+    n = x.shape[axis]
+
+    # replicate signal
+    slicer_pre = [slice(None)] * x.ndim
+    slicer_pre[axis] = slice(1, n+1)
+    slicer_post = [slice(None)] * x.ndim
+    slicer_post[axis] = slice(n+2, None)
+    slicer_post_inp = [slice(None)] * x.ndim
+    slicer_post_inp[axis] = slice(None, None, -1)
+    bigshape = list(x.shape)
+    bigshape[axis] = 2*(n+1)
+    tmp = x
+    x = cupy.zeros_like(x, shape=bigshape)
+    x[tuple(slicer_pre)] = tmp
+    x[tuple(slicer_post)] = tmp[tuple(slicer_post_inp)]
+    x[tuple(slicer_post)] *= -1
+    del tmp
+
+    # determine normalization factor
+    if norm == 'ortho':
+        inorm = 'sqrt'
+    elif norm == 'forward':
+        inorm = 'full' if forward else 'none'
+    elif norm == 'backward' or norm is None:
+        inorm = 'none' if forward else 'full'
+    else:
+        raise ValueError(f'Invalid norm value "{norm}", should be "backward", '
+                         '"ortho" or "forward"')
+    norm_factor = _get_dct_norm_factor(n, inorm=inorm, dct_type=1)
+
+    # fft
+    x = _fft.fft(x, n=2*(n+1), axis=axis, overwrite_x=True)
+    slicer_pre = [slice(None)] * x.ndim
+    slicer_pre[axis] = slice(1, n+1)
+    x = cupy.imag(x[tuple(slicer_pre)])
+    x *= -norm_factor
+
+    return cupy.copy(x)  # /!\ (YB) Copy needed for correct conversion to torch
 
 
 def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False):
@@ -532,7 +534,11 @@ def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False):
         return _dct_or_dst_type3(
             x, n=n, axis=axis, norm=norm, forward=True, dst=False
         )
-    elif type in [1, 4]:
+    elif type == 1:
+        return _dct_type1(
+            x, n=n, axis=axis, norm=norm, forward=True,
+        )
+    elif type == 4:
         raise NotImplementedError(
             'Only DCT-II and DCT-III have been implemented.'
         )
@@ -600,7 +606,11 @@ def dst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False):
         return _dct_or_dst_type3(
             x, n=n, axis=axis, norm=norm, forward=True, dst=True
         )
-    elif type in [1, 4]:
+    elif type == 1:
+        return _dst_type1(
+            x, n=n, axis=axis, norm=norm, forward=True,
+        )
+    elif type == 4:
         raise NotImplementedError(
             'Only DST-II and DST-III have been implemented.'
         )
@@ -672,7 +682,12 @@ def idct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False):
     elif type == 3:
         # DCT-II is the inverse of DCT-III
         return _dct_or_dst_type2(x, n=n, axis=axis, norm=norm, forward=False)
-    elif type in [1, 4]:
+    elif type == 1:
+        # DCT-I is the inverse of DCT-I
+        return _dct_type1(
+            x, n=n, axis=axis, norm=norm, forward=False,
+        )
+    elif type == 4:
         raise NotImplementedError(
             'Only DCT-II and DCT-III have been implemented.'
         )
@@ -724,16 +739,21 @@ def idst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False):
     x = _promote_dtype(x)
 
     if type == 2:
-        # DCT-III is the inverse of DCT-II
+        # DST-III is the inverse of DST-II
         return _dct_or_dst_type3(
             x, n=n, axis=axis, norm=norm, forward=False, dst=True
         )
     elif type == 3:
-        # DCT-II is the inverse of DCT-III
+        # DST-II is the inverse of DST-III
         return _dct_or_dst_type2(
             x, n=n, axis=axis, norm=norm, forward=False, dst=True
         )
-    elif type in [1, 4]:
+    elif type == 1:
+        # DST-I is the inverse of DST-I
+        return _dst_type1(
+            x, n=n, axis=axis, norm=norm, forward=False,
+        )
+    elif type == 4:
         raise NotImplementedError(
             'Only DST-II and DST-III have been implemented.'
         )

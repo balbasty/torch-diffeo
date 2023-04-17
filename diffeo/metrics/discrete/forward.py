@@ -3,15 +3,16 @@ import itertools
 from typing import Union
 from diffeo.utils import make_vector, ensure_list
 from diffeo.diffdiv import diff, div, diff1d, div1d
+from diffeo.bounds import bound2dft
 
 
-def absolute(grid, voxel_size=1, bound='dft'):
+def absolute(grid, voxel_size=1, bound='circulant'):
     """Precision matrix for the Absolute energy of a deformation grid
 
     Parameters
     ----------
     grid : (..., *spatial, dim) tensor
-    voxel_size : float or sequence[float], default=1
+    voxel_size : [list of] float, default=1
 
     Returns
     -------
@@ -25,44 +26,50 @@ def absolute(grid, voxel_size=1, bound='dft'):
     return grid
 
 
-def membrane(grid, voxel_size=1, bound='dft'):
+def membrane(grid, voxel_size=1, bound='circulant', _norm=True):
     """Precision matrix for the Membrane energy of a deformation grid
 
     Parameters
     ----------
     grid : (..., *spatial, dim) tensor
-    voxel_size : float or sequence[float], default=1
-    bound : str, default='dft'
+    voxel_size : [list of] float, default=1
+    bound : [list of] str, default='circulant'
 
     Returns
     -------
     field : (..., *spatial, dim) tensor
 
     """
+    if bound == 'sliding':
+        return sliding(membrane, grid, voxel_size)
+
     backend = dict(dtype=grid.dtype, device=grid.device)
-    dim = grid.shape[-1]
-    voxel_size = make_vector(voxel_size, dim, **backend)
-    grid = grid.movedim(-1, -(dim + 1))
+    ndim = grid.shape[-1]
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    voxel_size = make_vector(voxel_size, ndim, **backend)
+    _norm = _norm and (voxel_size != 1).any()
 
-    dims = list(range(grid.dim()-dim, grid.dim()))
+    grid = grid.movedim(-1, -(ndim + 1))
+    dims = list(range(grid.dim()-ndim, grid.dim()))
     grid = diff(grid, dim=dims, voxel_size=voxel_size, side='f', bound=bound)
-    dims = list(range(grid.dim()-1-dim, grid.dim()-1))
+    dims = list(range(grid.dim()-1-ndim, grid.dim()-1))
     grid = div(grid, dim=dims, voxel_size=voxel_size, side='f', bound=bound)
+    grid = grid.movedim(-(ndim + 1), -1)
 
-    grid = grid.movedim(-(dim + 1), -1)
-    if (voxel_size != 1).any():
+    if _norm:
         grid.mul_(voxel_size.square())
     return grid
 
 
-def bending(grid, voxel_size=1, bound='dft'):
+def bending(grid, voxel_size=1, bound='circulant', _norm=True):
     """Precision matrix for the Bending energy of a deformation grid
 
     Parameters
     ----------
     grid : (..., *spatial, dim) tensor
-    voxel_size : float or sequence[float], default=1
-    bound : str, default='dft'
+    voxel_size : [list of] float, default=1
+    bound : str, default='circulant'
     weights : (..., *spatial) tensor, optional
 
     Returns
@@ -70,10 +77,15 @@ def bending(grid, voxel_size=1, bound='dft'):
     field : (..., *spatial, dim) tensor
 
     """
+    if bound == 'sliding':
+        return sliding(bending, grid, voxel_size)
+
     backend = dict(dtype=grid.dtype, device=grid.device)
     ndim = grid.shape[-1]
     bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
     voxel_size = make_vector(voxel_size, ndim, **backend)
+    _norm = _norm and (voxel_size != 1).any()
     grid = grid.movedim(-1, -(ndim + 1))
 
     dims = list(range(grid.dim()-ndim, grid.dim()))
@@ -106,19 +118,19 @@ def bending(grid, voxel_size=1, bound='dft'):
     grid = mom.div_(4.)
 
     grid = grid.movedim(-(ndim + 1), -1)
-    if (voxel_size != 1).any():
+    if _norm:
         grid.mul_(voxel_size.square())
     return grid
 
 
-def lame_shear(grid, voxel_size=1, bound='dft'):
+def lame_shear(grid, voxel_size=1, bound='circulant'):
     """Precision matrix for the Shear component of the Linear-Elastic energy.
 
     Parameters
     ----------
     grid : (..., *spatial, dim) tensor
-    voxel_size : float or sequence[float], default=1
-    bound : str, default='dft'
+    voxel_size : [list of] float, default=1
+    bound : str, default='circulant'
 
     Returns
     -------
@@ -127,7 +139,13 @@ def lame_shear(grid, voxel_size=1, bound='dft'):
     """
     backend = dict(dtype=grid.dtype, device=grid.device)
     ndim = grid.shape[-1]
-    bound = ensure_list(bound, ndim)
+    if bound == 'sliding':
+        bound = [['dst2' if d == dd else 'dct2' for dd in range(ndim)]
+                 for d in range(ndim)]
+    else:
+        bound = ensure_list(bound, ndim)
+        bound = list(map(lambda x: bound2dft.get(x, x), bound))
+        bound = [bound] * ndim
     voxel_size = make_vector(voxel_size, ndim, **backend)
     bound = ensure_list(bound, ndim)
     dims = list(range(grid.dim() - 1 - ndim, grid.dim() - 1))
@@ -146,7 +164,7 @@ def lame_shear(grid, voxel_size=1, bound='dft'):
         x_i = grid[..., i]
         for j in range(i, ndim):
             for side_i in ('f', 'b'):
-                opt_ij = dict(dim=dims[j], side=side_i, bound=bound[j],
+                opt_ij = dict(dim=dims[j], side=side_i, bound=bound[i][j],
                               voxel_size=voxel_size[j])
                 diff_ij = diff1d(x_i, **opt_ij, out=buf1).mul_(voxel_size[i])
                 if i == j:
@@ -157,7 +175,7 @@ def lame_shear(grid, voxel_size=1, bound='dft'):
                     # off diagonal elements
                     x_j = grid[..., j]
                     for side_j in ('f', 'b'):
-                        opt_ji = dict(dim=dims[i], side=side_j, bound=bound[i],
+                        opt_ji = dict(dim=dims[i], side=side_j, bound=bound[i][j],
                                       voxel_size=voxel_size[i])
                         diff_ji = diff1d(x_j, **opt_ji, out=buf2).mul_(
                             voxel_size[j])
@@ -174,14 +192,14 @@ def lame_shear(grid, voxel_size=1, bound='dft'):
     return mom
 
 
-def lame_div(grid, voxel_size=1, bound='dft'):
+def lame_div(grid, voxel_size=1, bound='circulant'):
     """Precision matrix for the Divergence component of the Linear-Elastic energy.
 
     Parameters
     ----------
     grid : (..., *spatial, dim) tensor
-    voxel_size : float or sequence[float], default=1 (actually unused)
-    bound : str, default='dft'
+    voxel_size : [list of] float, default=1 (actually unused)
+    bound : str, default='circulant'
 
     Returns
     -------
@@ -189,7 +207,11 @@ def lame_div(grid, voxel_size=1, bound='dft'):
 
     """
     ndim = grid.shape[-1]
-    bound = ensure_list(bound, ndim)
+    if bound == 'sliding':
+        bound = ['dst2'] * ndim
+    else:
+        bound = ensure_list(bound, ndim)
+        bound = list(map(lambda x: bound2dft.get(x, x), bound))
     dims = list(range(grid.dim() - 1 - ndim, grid.dim() - 1))
 
     # precompute gradients
@@ -230,7 +252,7 @@ _lame_div = lame_div
 
 
 def mixture(v, absolute=0, membrane=0, bending=0, lame_shear=0, lame_div=0,
-            factor=1, voxel_size=1, bound='dft'):
+            factor=1, voxel_size=1, bound='circulant'):
     """Precision matrix for a mixture of energies for a deformation grid.
 
     Parameters
@@ -242,8 +264,8 @@ def mixture(v, absolute=0, membrane=0, bending=0, lame_shear=0, lame_div=0,
     lame_shear : float, default=0
     lame_div : float, default=0
     factor : float, default=1
-    voxel_size : [sequence of] float, default=1
-    bound : str, default='dft'
+    voxel_size : [list of] float, default=1
+    bound : str, default='circulant'
 
     Returns
     -------
@@ -287,3 +309,17 @@ def is_zero(x: Union[float, torch.Tensor]) -> bool:
         return False
     else:
         return x == 0
+
+
+def sliding(func, grid, voxel_size=1):
+    """Apply membrane/bending with sliding boundaries"""
+    backend = dict(dtype=grid.dtype, device=grid.device)
+    dim = grid.shape[-1]
+    voxel_size = make_vector(voxel_size, dim, **backend)
+    grid, grid0 = torch.empty_like(grid), grid
+    for d, g in enumerate(grid0.unbind(-1)):
+        bound = ['dct2'] * dim
+        bound[d] = 'dst2'
+        grid[..., d] = func(g.unsqueeze(-1), voxel_size, bound=bound, _norm=False)
+    grid.mul_(voxel_size.square())
+    return grid
