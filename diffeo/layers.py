@@ -85,7 +85,7 @@ class BCH(nn.Module):
 class Shoot(nn.Module):
     """Exponentiate an Initial Velocity using Geodesic Shooting"""
 
-    def __init__(self, metric=default_metric, steps=8, fast=True,
+    def __init__(self, metric=default_metric, steps=None, fast=True,
                  backend=None):
         """
         Parameters
@@ -94,6 +94,8 @@ class Shoot(nn.Module):
             A Riemannian metric
         steps : int
             Number of Euler integration steps.
+            If None, use an educated guess based on the magnitude of
+            the initial velocity.
         fast : int
             Use a faster but slightly less accurate integration scheme.
         backend : module

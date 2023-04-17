@@ -9,7 +9,7 @@ from diffeo.flows import jacobian, compose
 default_metric = Mixture(absolute=0.001, membrane=0.1)
 
 
-def shoot(vel, metric=default_metric, steps=8, fast=True, verbose=False,
+def shoot(vel, metric=default_metric, steps=None, fast=True, verbose=False,
           backend=interpol):
     """Exponentiate a velocity field by geodesic shooting.
 
@@ -26,7 +26,7 @@ def shoot(vel, metric=default_metric, steps=8, fast=True, verbose=False,
         Initial velocity in moving space.
     metric : Metric
         Riemannian metric
-    steps : int, default=8
+    steps : int, optional
         Number of integration steps.
         If None, use an educated guess based on the magnitude of `vel`.
     fast : bool, default=True
