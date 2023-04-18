@@ -3,7 +3,7 @@ from diffeo.utils import cartesian_grid, ensure_list
 from diffeo.diffdiv import diff
 from diffeo.backends import interpol as interpol_backend
 from diffeo.linalg import batchmatvec
-from diffeo.bounds import bound2dft
+from diffeo.bounds import bound2dft, sliding2dft, has_sliding
 
 
 def add_identity_(flow):
@@ -149,7 +149,7 @@ def jacobian(flow, bound='circulant', voxel_size=1,
     ----------
     flow : (..., *spatial, dim) tensor
         Transformation or displacement field
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
     voxel_size : [sequence of] float, default=1
         Voxel size
@@ -169,16 +169,19 @@ def jacobian(flow, bound='circulant', voxel_size=1,
     ndim = flow.shape[-1]
     if has_identity:
         flow = sub_identity(flow)
-    if bound == 'sliding':
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    if has_sliding(bound):
         dims = list(range(-ndim, 0))
         jac = flow.new_zeros([*flow.shape, ndim])
         for d in range(ndim):
-            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
-            jac[..., d] = diff(flow[..., d], dim=dims, bound=bound, voxel_size=voxel_size, side='c')
+            bound1 = sliding2dft(bound, d)
+            jac[..., d] = diff(flow[..., d], dim=dims, bound=bound1,
+                               voxel_size=voxel_size, side='c')
     else:
-        bound = list(map(lambda x: bound2dft.get(x, x), ensure_list(bound, ndim)))
         dims = list(range(-ndim-1, -1))
-        jac = diff(flow, dim=dims, bound=bound, voxel_size=voxel_size, side='c')
+        jac = diff(flow, dim=dims, bound=bound,
+                   voxel_size=voxel_size, side='c')
     if add_identity is None:
         add_identity = has_identity
     if add_identity:
@@ -194,7 +197,7 @@ def jacdet(flow, bound='circulant', voxel_size=1,
     ----------
     flow : (..., *spatial, dim) tensor
         Transformation or displacement field
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
     voxel_size : [sequence of] float, default=1
         Voxel size
@@ -228,7 +231,7 @@ def compose(flow_left, flow_right, bound='circulant', has_identity=False, backen
     ----------
     flow_left : (..., *shape, D) tensor
     flow_right : (..., *shape, D) tensor
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
     has_identity : bool, default=False
     backend : module
 
@@ -259,7 +262,7 @@ def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
         Right-hand side transformation
     lhs : (..., *spatial, ndim) tensor, default=`rhs`
         Left-hand side small displacement
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
     has_identity : bool, default=False
         Whether the leht-hand side is a transformation (True) or
@@ -278,15 +281,13 @@ def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
     ndim = rhs.shape[-1]
     jac = jac.transpose(-1, -2)
     new_jac = torch.empty_like(jac)
-    is_sliding = isinstance(bound, str) and bound[0].lower() == 's'
-    if not is_sliding:
-        bound = list(map(lambda x: bound2dft.get(x, x), ensure_list(bound, ndim)))
+    ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
     # NOTE: loop across dimensions to save memory
     for d in range(ndim):
-        if is_sliding:
-            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
-        jac_left = diff(lhs[..., d], bound=bound, dim=range(-ndim, 0))
-        jac_left = backend.pull(jac_left, rhs, bound=bound, has_identity=has_identity)
+        bound1 = sliding2dft(bound, d)
+        jac_left = diff(lhs[..., d], bound=bound1, dim=range(-ndim, 0))
+        jac_left = backend.pull(jac_left, rhs, bound=bound1, has_identity=has_identity)
         jac_left[..., d] += 1
         new_jac[..., d] = batchmatvec(jac, jac_left)
     return new_jac.transpose(-1, -2)
@@ -300,7 +301,7 @@ def bracket(vel_left, vel_right, bound='circulant', has_identity=False,
     ----------
     vel_left : (..., *shape, D) tensor
     vel_right : (..., *shape, D) tensor
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
     has_identity : bool, default=False
     backend : module
 

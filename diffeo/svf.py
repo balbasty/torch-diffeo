@@ -15,7 +15,7 @@ def exp(vel, steps=8, bound='circulant', anagrad=False, backend=default_backend)
     steps : int, default=8
         Number of scaling and squaring steps
         (corresponding to 2**steps integration steps).
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary conditions
     anagrad : bool, default=False
         Use analytical gradients rather than autodiff gradients in
@@ -122,7 +122,7 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', rotate_grad=F
         Symmetric hessian with respect to the output grid.
     steps : int, default=8
         Number of scaling and squaring steps
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
     rotate_grad : bool, default=False
         If True, rotate the gradients using the Jacobian of exp(vel).

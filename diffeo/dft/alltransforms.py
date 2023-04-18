@@ -15,8 +15,3 @@ except ImportError:
 
 dft = torch.fft.fftn
 idft = torch.fft.ifftn
-
-
-# _dst1 = dst1
-# def dst1(x, *args, **kwargs):
-#     return _dst1(x.cpu(), *args, **kwargs).to(x.device)

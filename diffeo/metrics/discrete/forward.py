@@ -3,7 +3,7 @@ import itertools
 from typing import Union
 from diffeo.utils import make_vector, ensure_list
 from diffeo.diffdiv import diff, div, diff1d, div1d
-from diffeo.bounds import bound2dft
+from diffeo.bounds import bound2dft, sliding2dft, has_sliding
 
 
 def absolute(grid, voxel_size=1, bound='circulant'):
@@ -40,11 +40,13 @@ def membrane(grid, voxel_size=1, bound='circulant', _norm=True):
     field : (..., *spatial, dim) tensor
 
     """
-    if bound == 'sliding':
-        return sliding(membrane, grid, voxel_size)
+    ndim = grid.shape[-1]
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    if has_sliding(bound):
+        return sliding(membrane, grid, bound, voxel_size)
 
     backend = dict(dtype=grid.dtype, device=grid.device)
-    ndim = grid.shape[-1]
     bound = ensure_list(bound, ndim)
     bound = list(map(lambda x: bound2dft.get(x, x), bound))
     voxel_size = make_vector(voxel_size, ndim, **backend)
@@ -77,11 +79,13 @@ def bending(grid, voxel_size=1, bound='circulant', _norm=True):
     field : (..., *spatial, dim) tensor
 
     """
-    if bound == 'sliding':
-        return sliding(bending, grid, voxel_size)
+    ndim = grid.shape[-1]
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    if has_sliding(bound):
+        return sliding(bending, grid, bound, voxel_size)
 
     backend = dict(dtype=grid.dtype, device=grid.device)
-    ndim = grid.shape[-1]
     bound = ensure_list(bound, ndim)
     bound = list(map(lambda x: bound2dft.get(x, x), bound))
     voxel_size = make_vector(voxel_size, ndim, **backend)
@@ -139,12 +143,13 @@ def lame_shear(grid, voxel_size=1, bound='circulant'):
     """
     backend = dict(dtype=grid.dtype, device=grid.device)
     ndim = grid.shape[-1]
-    if bound == 'sliding':
-        bound = [['dst2' if d == dd else 'dct2' for dd in range(ndim)]
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    if has_sliding(bound):
+        bound = [[('dst2' if d == dd else 'dct2') if b[0] == 's' else bound
+                  for dd, b in enumerate(bound)]
                  for d in range(ndim)]
     else:
-        bound = ensure_list(bound, ndim)
-        bound = list(map(lambda x: bound2dft.get(x, x), bound))
         bound = [bound] * ndim
     voxel_size = make_vector(voxel_size, ndim, **backend)
     bound = ensure_list(bound, ndim)
@@ -175,7 +180,7 @@ def lame_shear(grid, voxel_size=1, bound='circulant'):
                     # off diagonal elements
                     x_j = grid[..., j]
                     for side_j in ('f', 'b'):
-                        opt_ji = dict(dim=dims[i], side=side_j, bound=bound[i][j],
+                        opt_ji = dict(dim=dims[i], side=side_j, bound=bound[j][i],
                                       voxel_size=voxel_size[i])
                         diff_ji = diff1d(x_j, **opt_ji, out=buf2).mul_(
                             voxel_size[j])
@@ -199,19 +204,18 @@ def lame_div(grid, voxel_size=1, bound='circulant'):
     ----------
     grid : (..., *spatial, dim) tensor
     voxel_size : [list of] float, default=1 (actually unused)
-    bound : str, default='circulant'
+    bound : [list of] str, default='circulant'
 
     Returns
     -------
     grid : (..., *spatial, dim) tensor
 
     """
+    # divergence only uses diagonal elements so sliding -> dst2
     ndim = grid.shape[-1]
-    if bound == 'sliding':
-        bound = ['dst2'] * ndim
-    else:
-        bound = ensure_list(bound, ndim)
-        bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    bound = ensure_list(bound, ndim)
+    bound = map(lambda x: bound2dft.get(x, x), bound)
+    bound = ['dst2' if b[0] == 's' else b for b in bound]
     dims = list(range(grid.dim() - 1 - ndim, grid.dim() - 1))
 
     # precompute gradients
@@ -265,7 +269,7 @@ def mixture(v, absolute=0, membrane=0, bending=0, lame_shear=0, lame_div=0,
     lame_div : float, default=0
     factor : float, default=1
     voxel_size : [list of] float, default=1
-    bound : str, default='circulant'
+    bound : [list of] str, default='circulant'
 
     Returns
     -------
@@ -311,15 +315,14 @@ def is_zero(x: Union[float, torch.Tensor]) -> bool:
         return x == 0
 
 
-def sliding(func, grid, voxel_size=1):
+def sliding(func, grid, bound, voxel_size=1):
     """Apply membrane/bending with sliding boundaries"""
     backend = dict(dtype=grid.dtype, device=grid.device)
     dim = grid.shape[-1]
     voxel_size = make_vector(voxel_size, dim, **backend)
     grid, grid0 = torch.empty_like(grid), grid
     for d, g in enumerate(grid0.unbind(-1)):
-        bound = ['dct2'] * dim
-        bound[d] = 'dst2'
-        grid[..., d] = func(g.unsqueeze(-1), voxel_size, bound=bound, _norm=False)
+        grid[..., d] = func(g.unsqueeze(-1), voxel_size,
+                            bound=sliding2dft(bound, d), _norm=False)
     grid.mul_(voxel_size.square())
     return grid

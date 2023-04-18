@@ -11,7 +11,7 @@ class Gaussian(Metric):
     Positive semi-definite metric whose Greens function is a Gaussian filter.
     """
 
-    def __init__(self, fwhm=16, factor=1, voxel_size=1, bound='dft',
+    def __init__(self, fwhm=16, factor=1, voxel_size=1, bound='circulant',
                  learnable=False, cache=False):
         """
         Parameters
@@ -23,7 +23,7 @@ class Gaussian(Metric):
             Global regularization factor (optionally: learnable)
         voxel_size : list[float]
             Voxel size
-        bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+        bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions
         learnable : bool or {'factor', 'fwhm', 'fwhm+factor}
             Make `factor` and/or 'fwhm' a learnable parameter.

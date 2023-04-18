@@ -59,7 +59,7 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
 
     Parameters
     ----------
-    flow : ([B], *shape_out, D) tensor
+    flow : (..., *shape_out, D) tensor
         Displacement field, in voxels.
     shape : list[int], optional
         Output shape
@@ -73,8 +73,8 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
 
     Returns
     -------
-    pushed : (B, *shape_out, 1|D) tensor
-        Pushed image
+    count : (..., *shape_out, 1|D) tensor
+        Count image
 
     """
     if not has_identity:

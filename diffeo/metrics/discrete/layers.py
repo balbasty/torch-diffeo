@@ -39,7 +39,7 @@ class Mixture(Metric):
             Global regularization factor (optionally: learnable)
         voxel_size : list[float]
             Voxel size
-        bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+        bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions
         use_diff : bool
             Use finite differences to perform the forward pass.

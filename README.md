@@ -37,7 +37,7 @@ Exp(bound='circulant', steps=8, anagrad=False): ...
 
 Parameters
 ----------
-bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
 steps : int
     Number of scaling and squaring steps.
@@ -45,7 +45,7 @@ anagrad : bool
     Use analytical gradients instead of autograd.
 """
 
-BCH(bound='dft', order=2): ...
+BCH(bound='circulant', order=2): ...
 """Compose two Stationary Velocity Fields using the BCH formula
 
 The Baker–Campbell–Hausdorff (BCH) allows computing z such that
@@ -55,7 +55,7 @@ https://en.wikipedia.org/wiki/BCH_formula
     
 Parameters
 ----------
-bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
 order : int
     Maximum order used in the BCH series
@@ -76,42 +76,48 @@ fast : int
     Use a faster but slightly less accurate integration scheme.
 """
 
-Compose(bound='dft'): ...
+Compose(bound='circulant'): ...
 """Compose two Displacement Fields
 
 Parameters
 ----------
-bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
 """
 
-Pull(bound='dft'): ...
+Pull(bound='wrap'): ...
 """Warp an image using a Displacement Field
 
 Parameters
 ----------
-bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+bound : [list of] {'wrap', 'reflect', 'mirror'} 
     Boundary conditions.
+    If splatting a displacement field, can also be one of the 
+    metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
 """
 
-Push(bound='dft', normalize=False): ...
+Push(bound='wrap', normalize=False): ...
 """Splat an image using a Displacement Field
 
 Parameters
 ----------
-bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+bound : [list of] {'wrap', 'reflect', 'mirror'} 
     Boundary conditions.
+    If splatting a displacement field, can also be one of the 
+    metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
 normalize : bool
     Divide the pushed values by the result of `Count`.
 """
 
-Count(bound='dft'): ...
+Count(bound='wrap'): ...
 """Splat an image of ones using a Displacement Field
 
 Parameters
 ----------
-bound : {'dft', 'dct1', 'dct2', 'dst1', 'dst2'}
+bound : [list of] {'wrap', 'reflect', 'mirror'} 
     Boundary conditions.
+    If splatting a displacement field, can also be one of the 
+    metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
 """
 ```
 
@@ -202,7 +208,7 @@ ld : scalar tensor
 This is the list metrics currently available:
 ```python
 Mixture(absolute=0, membrane=0, bending=0, lame_shears=0, lame_div=0,
-        factor=1, voxel_size=1, bound='dft', use_diff=True,
+        factor=1, voxel_size=1, bound='circulant', use_diff=True,
         learnable=False, cache=False): ...
 """
 Positive semi-definite metric based on finite-difference regularisers.
@@ -228,7 +234,7 @@ factor : float
     Global regularization factor (optionally: learnable)
 voxel_size : list[float]
     Voxel size
-bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 use_diff : bool
     Use finite differences to perform the forward pass.
@@ -242,7 +248,7 @@ cache : bool or int
     This cannot be used when `learnable='components'`
 """
 
-Laplace(factor=1, voxel_size=1, bound='dft',
+Laplace(factor=1, voxel_size=1, bound='circulant',
         learnable=False, cache=False): ...
 """
 Positive semi-definite metric based on the Laplace operator.
@@ -258,7 +264,7 @@ factor : float
     Regularization factor (optionally: learnable)
 voxel_size : list[float]
     Voxel size
-bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 learnable : bool
     Make `factor` a learnable parameter
@@ -266,7 +272,7 @@ cache : bool or int
     Cache up to `n` kernels
 """
 
-Helmoltz(factor=1, alpha=1e-3, voxel_size=1, bound='dft',
+Helmoltz(factor=1, alpha=1e-3, voxel_size=1, bound='circulant',
          learnable=False, cache=False): ...
 """
 Positive semi-definite metric based on the Helmoltz operator.
@@ -286,7 +292,7 @@ alpha : float
     It is the square of the eigenvalue in the Helmoltz equation.
 voxel_size : list[float]
     Voxel size
-bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 learnable : bool
     Make `factor` a learnable parameter
@@ -294,7 +300,7 @@ cache : bool or int
     Cache up to `n` kernels
 """
 
-Gaussian(fwhm=16, factor=1, voxel_size=1, bound='dft',
+Gaussian(fwhm=16, factor=1, voxel_size=1, bound='circulant',
          learnable=False, cache=False): ...
 """
 Positive semi-definite metric whose Greens function is a Gaussian filter.
@@ -308,7 +314,7 @@ factor : float
     Global regularization factor (optionally: learnable)
 voxel_size : list[float]
     Voxel size
-bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions
 learnable : bool or {'factor', 'fwhm', 'fwhm+factor}
     Make `factor` and/or 'fwhm' a learnable parameter.
@@ -361,3 +367,101 @@ with backend(jitfields):
 Note that we currently have issues when using the `torch` backend along
 with geodesic shooting layers. Classic interpolation and stationary 
 velocity fields should work fine, however.
+
+All backends implement the following function:
+```python
+def pull(image, flow, bound='dct2', has_identity=False): ...
+"""Warp an image according to a (voxel) displacement field.
+
+Parameters
+----------
+image : (..., *shape_in, C) tensor
+    Input image.
+flow : (..., *shape_out, D) tensor
+    Displacement field, in voxels.
+bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+    Boundary conditions.
+    Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
+    in which case the image is assumed to be a flow field.
+has_identity : bool, default=False
+    - If False, `flow` is contains relative displacement.
+    - If True, `flow` contains absolute coordinates.
+
+Returns
+-------
+warped : (..., *shape_out, C) tensor
+    Warped image
+"""
+
+def push(image, flow, shape=None, bound='dct2', has_identity=False) ...:
+"""Splat an image according to a (voxel) displacement field.
+
+Parameters
+----------
+image : (..., *shape_in, C) tensor
+    Input image.
+flow : (..., *shape_out, D) tensor
+    Displacement field, in voxels.
+shape : list[int], optional
+    Output shape
+bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+    Boundary conditions.
+    Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
+    in which case the image is assumed to be a flow field.
+has_identity : bool, default=False
+    - If False, `flow` is contains relative displacement.
+    - If True, `flow` contains absolute coordinates.
+
+Returns
+-------
+pushed : (..., *shape_out, C) tensor
+    Pushed image
+
+"""
+
+def count(flow, shape=None, bound='dct2', has_identity=False): ...
+"""Splat an image of ones according to a (voxel) displacement field.
+
+Parameters
+----------
+flow : (..., *shape_out, D) tensor
+    Displacement field, in voxels.
+shape : list[int], optional
+    Output shape
+bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+    Boundary conditions.
+    Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
+    in which case the count image may have D channels.
+has_identity : bool, default=False
+    - If False, `flow` is contains relative displacement.
+    - If True, `flow` contains absolute coordinates.
+
+Returns
+-------
+count : (..., *shape_out, 1|D) tensor
+    Count image
+"""
+
+def grad(image, flow, bound='dct2', has_identity=False): ...
+"""Compute spatial gradients of image according to a (voxel) displacement field.
+
+Parameters
+----------
+image : (..., *shape_in, C) tensor
+    Input image.
+flow : (..., *shape_out, D) tensor
+    Displacement field, in voxels.
+bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+    Boundary conditions.
+    Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
+    in which case the image is assumed to be a flow field.
+has_identity : bool, default=False
+    - If False, `flow` is contains relative displacement.
+    - If True, `flow` contains absolute coordinates.
+
+Returns
+-------
+grad : (..., *shape_out, C, D) tensor
+    Sampled gradients
+"""
+```

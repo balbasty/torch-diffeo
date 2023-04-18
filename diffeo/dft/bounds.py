@@ -1,7 +1,8 @@
 from torch import nn
 import torch
 from .generic import dtn, kerdtn, dtshift, real
-from diffeo.bounds import dft2bound
+from diffeo.bounds import bound2dft, has_sliding, sliding2dft
+from diffeo.utils import ensure_list
 
 
 msg_error_dct = """
@@ -34,43 +35,37 @@ class FrequencyTransform(nn.Module):
         # combinations of types must be used.
         # See https://en.wikipedia.org/wiki/Symmetric_convolution
 
-        bound = bound.lower()
-        bound = dft2bound.get(bound, bound)
+        bound = ensure_list(bound, ndim)
+        bound = list(map(lambda x: bound2dft.get(x, x), bound))
         self.bound = bound
-        self.trf = (
-            'dft' if bound[0] == 'c' else
-            'dct2' if bound[0] == 'n' else
-            'dst2' if bound[0] == 'd' else
-            None)
-        self.sym = bound[0] != 'c'
+        self.sym = [b != 'dft' for b in bound]
+        self.sliding = has_sliding(bound)
 
     def forward(self, x):
         """x : (..., [D], *spatial) tensor"""
-        if self.trf:
-            return dtn(x, self.trf, dim=self.dims)
+        if not self.sliding:
+            return dtn(x, self.bound, dim=self.dims)
         else:
-            # sliding
             x, y = torch.empty_like(x), x
             x = x.movedim(-self.ndim-1, 0)
             y = y.movedim(-self.ndim-1, 0)
             for i, d in enumerate(self.dims):
-                bound = ['dst2' if dd == i else 'dct2' for dd in range(self.ndim)]
-                x[i] = dtn(y[i], bound, dim=self.dims)
+                x[i] = dtn(y[i], sliding2dft(self.bound, i), dim=self.dims)
             x = x.movedim(0, -self.ndim-1)
             return x
 
     def inverse(self, x):
         """x : (..., [D], *spatial) tensor"""
-        if self.trf:
-            return real(dtn(x, self.trf, dim=self.dims, inverse=True))
+        if not self.sliding:
+            return real(dtn(x, self.bound, dim=self.dims, inverse=True))
         else:
             # sliding
             x, y = torch.empty_like(x), x
             x = x.movedim(-self.ndim-1, 0)
             y = y.movedim(-self.ndim-1, 0)
             for i, d in enumerate(self.dims):
-                bound = ['dst2' if dd == i else 'dct2' for dd in range(self.ndim)]
-                x[i] = dtn(y[i], bound, dim=self.dims, inverse=True)
+                x[i] = dtn(y[i], sliding2dft(self.bound, i), dim=self.dims,
+                           inverse=True)
             x = x.movedim(0, -self.ndim-1)
             return x
 

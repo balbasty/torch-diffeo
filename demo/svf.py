@@ -17,7 +17,7 @@ def to_rgb(x):
 
 
 def register(fix=None, mov=None, metric=None, hilbert=True,
-             lr=1e-4, nbiter=320, bound='circulant', device=None):
+             lr=1e-3, nbiter=320, bound='circulant', device=None):
     """Register two images by minimizing the squared differences.
 
     .. The deformation is encoded by a stationary velocity field.
@@ -38,7 +38,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         Learning rate.
     nbiter : int
         Number of gradient descent iterations.
-    bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
         Boundary conditions
     device : torch.device
 
@@ -102,4 +102,4 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         plt.show()
 
 
-register()
+register(bound=['dft', 'dct2'])

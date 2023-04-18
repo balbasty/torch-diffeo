@@ -14,7 +14,7 @@ class Laplace(Metric):
     https://en.wikipedia.org/wiki/Green%27s_function
     """
 
-    def __init__(self, factor=1, voxel_size=1, bound='dft',
+    def __init__(self, factor=1, voxel_size=1, bound='circulant',
                  learnable=False, cache=False):
         """
         Parameters
@@ -23,7 +23,7 @@ class Laplace(Metric):
             Regularization factor (optionally: learnable)
         voxel_size : list[float]
             Voxel size
-        bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+        bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions
         learnable : bool
             Make `factor` a learnable parameter
@@ -100,7 +100,7 @@ class Helmoltz(Metric):
     https://en.wikipedia.org/wiki/Green%27s_function
     """
 
-    def __init__(self, factor=1, alpha=1e-3, voxel_size=1, bound='dft',
+    def __init__(self, factor=1, alpha=1e-3, voxel_size=1, bound='circulant',
                  learnable=False, cache=False):
         """
         Parameters
@@ -112,7 +112,7 @@ class Helmoltz(Metric):
             It is the square of the eigenvalue in the Helmoltz equation.
         voxel_size : list[float]
             Voxel size
-        bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}
+        bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions
         learnable : bool
             Make `factor` a learnable parameter

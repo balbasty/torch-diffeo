@@ -1,10 +1,18 @@
 import torch.fft
+from torch import Tensor
+from math import floor
+from typing import Union, List, Optional
 from diffeo.utils import ensure_list
 from . import alltransforms
-from math import floor
 
 
-def dtn(x, type='dft', inverse=False, dim=None, norm=None):
+def dtn(
+    x: Tensor,
+    type: Union[str, List[str]] = 'dft',
+    inverse: bool = False,
+    dim: Optional[Union[int, List[int]]] = None,
+    norm: Optional[str] = None,
+) -> Tensor:
     """Compute a multidimensional Discrete Transform, different per dimension.
 
     Parameters
@@ -12,7 +20,7 @@ def dtn(x, type='dft', inverse=False, dim=None, norm=None):
     x : torch.tensor
         The input array.
     type : [list of] {"dft", "dct{1234}", "dst{1234}"}, optional
-        Type of transform. Default is "dft".
+        Type of transform, per dimension. Default is "dft".
     inverse : bool, optional
         Apply inverse transform
     dim : [list of] int, optional
@@ -51,7 +59,12 @@ def dtn(x, type='dft', inverse=False, dim=None, norm=None):
     return x
 
 
-def kerdtn(kernel, ndim, sym=False, inverse=False):
+def kerdtn(
+    kernel: Tensor,
+    ndim: int,
+    sym: Union[bool, List[bool]] = False,
+    inverse: bool = False,
+) -> Tensor:
     """Kernel discrete transform
 
     Parameters
@@ -60,8 +73,8 @@ def kerdtn(kernel, ndim, sym=False, inverse=False):
         Input kernel.
     ndim : int
         Number of spatial dimensions
-    sym : bool
-        Use a symmetric tranform
+    sym : [list of] bool
+        Whether to apply a symmetric transform (DCT/DST), per dimension.
     inverse : bool
         Whether to apply the inverse transform
 
@@ -72,28 +85,33 @@ def kerdtn(kernel, ndim, sym=False, inverse=False):
 
     """
     dims = list(range(-ndim, 0))
-    if not sym:
+    sym = ensure_list(sym, ndim)
+    if not any(sym):
         dt = alltransforms.idft if inverse else alltransforms.dft
         return real(dt(kernel, dim=dims))
 
-    dct = alltransforms.idct1 if inverse else alltransforms.dct1
-    dst = alltransforms.idst1 if inverse else alltransforms.dst1
+    dbound = ['dct1' if is_sym else 'dft' for is_sym in sym]
+    obound = ['dst1' if is_sym else 'dft' for is_sym in sym]
 
     nbatch = kernel.ndim - ndim
     if nbatch == 2:
         kernel, y = torch.zeros_like(kernel), kernel
-        for d in range(ndim):
-            kernel[d, d] = dct(y[d, d], dim=dims)
+        for d, m in enumerate(sym):
+            kernel[d, d] = dtn(y[d, d], dbound, dim=dims, inverse=inverse)
             for dd in range(d):
-                kernel[d, dd] = dst(y[d, dd], dim=dims)
+                kernel[d, dd] = dtn(y[d, dd], obound, dim=dims, inverse=inverse)
             for dd in range(d+1, ndim):
-                kernel[d, dd] = dst(y[d, dd], dim=dims)
+                kernel[d, dd] = dtn(y[d, dd], obound, dim=dims, inverse=inverse)
     else:
-        kernel = dct(kernel, dim=dims)
+        kernel = dtn(kernel, dbound, dim=dims, inverse=inverse)
     return kernel
 
 
-def dtshift(kernel, ndim, sym=False):
+def dtshift(
+    kernel: Tensor,
+    ndim: int,
+    sym: Union[bool, List[bool]] = False,
+) -> Tensor:
     """Shift a potentially symmetric kernel
 
     Parameters
@@ -101,13 +119,13 @@ def dtshift(kernel, ndim, sym=False):
     kernel : ([D], D, *shape) tensor
         Input kernel.
         If it has a single batch dimension, it is a diagonal kernel.
-        Otherwise it is a full kernel. If `sym`, diagonal element are
+        Otherwise, it is a full kernel. If `sym`, diagonal element are
         assumed to have an odd symmetry (DCT-I) and off-diagonal elements
         are assumed to have an odd antisymmetry (DST-I).
     ndim : int
         Number of spatial dimensions.
-    sym : bool
-        Symmetric kernel.
+    sym : [list of] bool
+        Whether to apply a symmetric transform (DCT/DST), per dimension.
 
     Returns
     -------
@@ -115,7 +133,8 @@ def dtshift(kernel, ndim, sym=False):
         Shifted kernel
 
     """
-    if not sym:
+    sym = ensure_list(sym, ndim)
+    if not any(sym):
         return torch.fft.ifftshift(kernel, list(range(-ndim, 0)))
 
     # only keep the lower half part of the kernel
@@ -130,23 +149,26 @@ def dtshift(kernel, ndim, sym=False):
     nbatch = kernel.ndim - ndim
     shape = kernel.shape[-ndim:]
     tmp, kernel = kernel, torch.zeros_like(kernel)
-    slicer = tuple(slice(int(floor(s / 2)), None) for s in shape)
+    slicer = [slice(int(floor(s / 2)), None)  if is_sym else slice(None)
+              for s, is_sym in zip(shape, sym)]
     if nbatch == 2:
-        slicer0 = tuple(slice(int(floor(s / 2)), -1) for s in shape)
-        slicer1 = tuple(slice(int(floor(s / 2)) + 1, None) for s in shape)
-        for d in range(ndim):
+        slicer0 = [slice(int(floor(s / 2)), -1) if is_sym else slice(None)
+                   for s, is_sym in zip(shape, sym)]
+        slicer1 = [slice(int(floor(s / 2)) + 1, None) if is_sym else slice(None)
+                   for s, is_sym in zip(shape, sym)]
+        for d, is_sym in enumerate(sym):
             kernel[(d, d, *slicer)] = tmp[(d, d, *slicer)]
-            for dd in range(ndim):
-                if dd == d: continue
+            for dd in range(d):
                 kernel[(d, dd, *slicer0)] = tmp[(d, dd, *slicer1)]
+                kernel[(dd, d, *slicer0)] = tmp[(dd, d, *slicer1)]
     else:
-        slicer = (slice(None),) * nbatch + slicer
+        slicer = (slice(None),) * nbatch + tuple(slicer)
         kernel[slicer] = tmp[slicer]
     kernel = torch.fft.ifftshift(kernel, list(range(-ndim, 0)))
     return kernel
 
 
-def real(x):
+def real(x: Tensor) -> Tensor:
     """Return the real part (even if already real)"""
     if x.is_complex():
         x = x.real

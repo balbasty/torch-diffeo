@@ -1,3 +1,35 @@
+"""
+Boundary conditions
+===================
+
+There is no common convention to name boundary conditions.
+Here's the list all possible aliases.
+
+=========   ===========   =======================   =======================
+Fourier     SciPy         Metric                    Description
+=========   ===========   =======================   =======================
+dft         wrap          circular                  c  d | a b c d |  a  b
+dct2        reflect       neumann                   b  a | a b c d |  d  c
+dct1        mirror                                  c  b | a b c d |  c  b
+dst2                      dirichlet                -b -a | a b c d | -d -c
+dst1                                               -a  0 | a b c d |  0 -d
+
+We further define a flow-specific "sliding" boundary condition, which
+uses a combination of dct2 and dst2:
+=============================   =============================
+X component                     Y component
+=============================   =============================
+ -f -e   -e -f -g -h   -h -g     -f -e    e  f  g  h   -h -g
+ -b -a   -a -b -c -d   -d -c     -b -a    a  b  c  d   -d -c
+-----------------------------   -----------------------------
+  b  a |  a  b  c  d |  d  c     -b -a |  a  b  c  d | -d -c
+  f  e |  e  f  g  h |  h  g     -f -e |  e  f  g  h | -h -g
+  j  i |  i  j  k  l |  l  k     -j -i |  i  j  k  l | -l -k
+  l  m |  m  n  o  p |  p  o     -n -m |  m  n  o  p | -p -o
+-----------------------------   -----------------------------
+ -n -m   -m -n -o -p   -p -o     -n -m    m  n  o  p   -p -o
+ -j -i   -i -j -k -l   -l -k     -j -i    i  j  k  l   -l -k
+"""
 from torch import nn
 from diffeo.svf import exp, bch
 from diffeo.shoot import shoot, default_metric
@@ -12,7 +44,7 @@ class Exp(nn.Module):
         """
         Parameters
         ----------
-        bound : {'circulant', 'neumann', 'dirichlet', 'sliding'}
+        bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions.
         steps : int
             Number of scaling and squaring steps.
@@ -61,7 +93,7 @@ class BCH(nn.Module):
         """
         Parameters
         ----------
-        bound : {{'circulant', 'neumann', 'dirichlet', 'sliding'}
+        bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions.
         order : int
             Maximum order used in the BCH series
@@ -83,7 +115,11 @@ class BCH(nn.Module):
 
 
 class Shoot(nn.Module):
-    """Exponentiate an Initial Velocity using Geodesic Shooting"""
+    """
+    Exponentiate an Initial Velocity using Geodesic Shooting
+
+    Returns the forward transform.
+    """
 
     def __init__(self, metric=default_metric, steps=None, fast=True,
                  backend=None):
@@ -115,10 +151,29 @@ class Shoot(nn.Module):
 
 
 class ShootInv(nn.Module):
-    """Exponentiate an Initial Velocity using Geodesic Shooting"""
+    """
+    Exponentiate an Initial Velocity using Geodesic Shooting
 
-    def __init__(self, metric=default_metric, steps=8, fast=True,
+    Returns the inverse transform.
+    """
+
+    def __init__(self, metric=default_metric, steps=None, fast=True,
                  backend=None):
+        """
+        Parameters
+        ----------
+        metric : Metric
+            A Riemannian metric
+        steps : int
+            Number of Euler integration steps.
+            If None, use an educated guess based on the magnitude of
+            the initial velocity.
+        fast : int
+            Use a faster but slightly less accurate integration scheme.
+        backend : module
+            Backend to use to implement pullback and pushforward.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.metric = metric
         self.steps = steps
@@ -133,10 +188,29 @@ class ShootInv(nn.Module):
 
 
 class ShootBoth(nn.Module):
-    """Exponentiate an Initial Velocity using Geodesic Shooting"""
+    """
+    Exponentiate an Initial Velocity using Geodesic Shooting
 
-    def __init__(self, metric=default_metric, steps=8, fast=True,
+    Returns the forward and inverse transform.
+    """
+
+    def __init__(self, metric=default_metric, steps=None, fast=True,
                  backend=None):
+        """
+        Parameters
+        ----------
+        metric : Metric
+            A Riemannian metric
+        steps : int
+            Number of Euler integration steps.
+            If None, use an educated guess based on the magnitude of
+            the initial velocity.
+        fast : int
+            Use a faster but slightly less accurate integration scheme.
+        backend : module
+            Backend to use to implement pullback and pushforward.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.metric = metric
         self.steps = steps
@@ -153,6 +227,15 @@ class Compose(nn.Module):
     """Compose two displacement fields"""
 
     def __init__(self, bound='circulant', backend=None):
+        """
+        Parameters
+        ----------
+        bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
+            Boundary conditions.
+        backend : module
+            Backend to use to implement resampling.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.bound = bound
         self.backend = backend or default_backend
@@ -167,7 +250,18 @@ class Compose(nn.Module):
 class Pull(nn.Module):
     """Warp an image using a displacement field"""
 
-    def __init__(self, bound='dft', backend=None):
+    def __init__(self, bound='wrap', backend=None):
+        """
+        Parameters
+        ----------
+        bound : [list of] {'wrap', 'reflect', 'mirror'}
+            Boundary conditions.
+            If warping a displacement field, can also be one of the
+            metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
+        backend : module
+            Backend to use to implement resampling.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.bound = bound
         self.backend = backend or default_backend
@@ -181,7 +275,21 @@ class Pull(nn.Module):
 class Push(nn.Module):
     """Splat an image using a displacement field"""
 
-    def __init__(self, bound='dft', normalize=False, backend=None):
+    def __init__(self, bound='wrap', normalize=False, backend=None):
+        """
+        Parameters
+        ----------
+        bound : [list of] {'wrap', 'reflect', 'mirror'}
+            Boundary conditions.
+            If splatting a displacement field, can also be one of the
+            metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
+        normalize : bool
+            Whether to divide the pushed values with the number of
+            pushed values (i.e., the "count").
+        backend : module
+            Backend to use to implement resampling.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.bound = bound
         self.normalize = normalize
@@ -200,7 +308,18 @@ class Push(nn.Module):
 class Count(nn.Module):
     """Splat an image using a displacement field"""
 
-    def __init__(self, bound='dft', backend=None):
+    def __init__(self, bound='wrap', backend=None):
+        """
+        Parameters
+        ----------
+        bound : [list of] {'wrap', 'reflect', 'mirror'}
+            Boundary conditions.
+            If splatting a displacement field, can also be one of the
+            metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
+        backend : module
+            Backend to use to implement resampling.
+            Must be one of the modules under `diffeo.backends`.
+        """
         super().__init__()
         self.bound = bound
         self.backend = backend or default_backend
