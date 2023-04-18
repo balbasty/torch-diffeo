@@ -321,7 +321,7 @@ learnable : bool or {'factor', 'fwhm', 'fwhm+factor}
     `True` is equivalent to `factor`.
 cache : bool or int
     Cache up to `n` kernels
-    This cannot be ]()used when `learnable='fwhm'`
+    This cannot be used when `learnable='fwhm'`
 """
 ```
 
