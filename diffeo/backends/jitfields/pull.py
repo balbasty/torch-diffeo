@@ -1,7 +1,7 @@
 from jitfields.pushpull import pull as _pull
 from diffeo.flows import add_identity
 from diffeo.utils import ensure_list
-from diffeo.bounds import bound2dft
+from diffeo.bounds import bound2dft, has_sliding, sliding2dft
 import torch
 
 
@@ -29,16 +29,15 @@ def pull(image, flow, bound='dct2', has_identity=False):
     if not has_identity:
         flow = add_identity(flow)
     ndim = flow.shape[-1]
-    if bound == 'sliding':
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    if has_sliding(bound):
         assert image.shape[-1] == ndim
         image, image0 = [], image
         for d in range(ndim):
-            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
             image.append(_pull(
                 image0[..., d:d+1], flow,
-                bound=bound, order=1, extrapolate=True))
+                bound=sliding2dft(bound, d), order=1, extrapolate=True))
         return torch.cat(image, dim=-1)
     else:
-        bound = ensure_list(bound, ndim)
-        bound = list(map(lambda x: bound2dft.get(x, x), bound))
         return _pull(image, flow, bound=bound, order=1, extrapolate=True)

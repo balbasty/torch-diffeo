@@ -4,7 +4,7 @@ from interpol import (
     add_identity_grid as add_identity
 )
 from diffeo.utils import ensure_list
-from diffeo.bounds import bound2dft
+from diffeo.bounds import bound2dft, has_sliding, sliding2dft
 import torch
 
 
@@ -36,18 +36,17 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
     if not has_identity:
         flow = add_identity(flow)
     ndim = flow.shape[-1]
-    if bound == 'sliding':
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    if has_sliding(bound):
         assert image.shape[-1] == ndim
         image, image0 = [], image
         for d in range(ndim):
-            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
             image.append(_push(
                 image0[..., d:d+1].movedim(-1, -ndim-1), flow, shape,
-                bound=bound, interpolation=1, extrapolate=True))
+                bound=sliding2dft(bound, d), interpolation=1, extrapolate=True))
         image = torch.cat(image, dim=ndim-1).movedim(-ndim-1, -1)
     else:
-        bound = ensure_list(bound, ndim)
-        bound = list(map(lambda x: bound2dft.get(x, x), bound))
         image = image.movedim(-1, -ndim-1)
         image = _push(image, flow, shape, bound=bound, interpolation=1, extrapolate=True)
         image = image.movedim(-ndim-1, -1)
@@ -80,17 +79,16 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
     if not has_identity:
         flow = add_identity(flow)
     ndim = flow.shape[-1]
-    if bound == 'sliding':
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    if has_sliding(bound):
         image = []
         for d in range(ndim):
-            bound = ['dst2' if dd == d else 'dct2' for dd in range(ndim)]
             image.append(_count(
-                flow, shape,
-                bound=bound, interpolation=1, extrapolate=True))
+                flow, shape, bound=sliding2dft(bound, d),
+                interpolation=1, extrapolate=True))
         image = torch.stack(image, dim=-1)
     else:
-        bound = ensure_list(bound, ndim)
-        bound = list(map(lambda x: bound2dft.get(x, x), bound))
         image = _count(flow, shape, bound=bound, interpolation=1, extrapolate=True)
         image = image.unsqueeze(-1)
     return image
