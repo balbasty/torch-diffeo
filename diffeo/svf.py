@@ -5,6 +5,7 @@ from diffeo.flows import compose, compose_jacobian, jacobian, bracket
 from diffeo.backends import default_backend
 from diffeo.linalg import jhj, batchmatvec, batchdet
 
+
 def exp(vel, steps=8, bound='circulant', anagrad=False, backend=default_backend):
     """Exponentiate a stationary velocity field by scaling and squaring.
 

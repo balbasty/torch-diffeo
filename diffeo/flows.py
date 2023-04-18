@@ -281,7 +281,7 @@ def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
     ndim = rhs.shape[-1]
     jac = jac.transpose(-1, -2)
     new_jac = torch.empty_like(jac)
-    ensure_list(bound, ndim)
+    bound = ensure_list(bound, ndim)
     bound = list(map(lambda x: bound2dft.get(x, x), bound))
     # NOTE: loop across dimensions to save memory
     for d in range(ndim):

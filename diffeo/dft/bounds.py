@@ -49,8 +49,8 @@ class FrequencyTransform(nn.Module):
             x, y = torch.empty_like(x), x
             x = x.movedim(-self.ndim-1, 0)
             y = y.movedim(-self.ndim-1, 0)
-            for i, d in enumerate(self.dims):
-                x[i] = dtn(y[i], sliding2dft(self.bound, i), dim=self.dims)
+            for d in range(self.ndim):
+                x[d] = dtn(y[d], sliding2dft(self.bound, d), dim=self.dims)
             x = x.movedim(0, -self.ndim-1)
             return x
 
@@ -63,8 +63,8 @@ class FrequencyTransform(nn.Module):
             x, y = torch.empty_like(x), x
             x = x.movedim(-self.ndim-1, 0)
             y = y.movedim(-self.ndim-1, 0)
-            for i, d in enumerate(self.dims):
-                x[i] = dtn(y[i], sliding2dft(self.bound, i), dim=self.dims,
+            for d in range(self.ndim):
+                x[d] = dtn(y[d], sliding2dft(self.bound, d), dim=self.dims,
                            inverse=True)
             x = x.movedim(0, -self.ndim-1)
             return x
