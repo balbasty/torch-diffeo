@@ -20,12 +20,12 @@ class DCT(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return from_cupy(F.dctn(to_cupy(x), type=type, axes=dim, norm=norm))
+        return apply_cupy(F.dctn, x, type=type, axes=dim, norm=norm)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = from_cupy(F.idctn(to_cupy(x), type=ctx.type, axes=ctx.dim, norm=norm))
+        x = apply_cupy(F.idctn, x, type=ctx.type, axes=ctx.dim, norm=norm)
         return x, None, None, None
 
 
@@ -36,12 +36,12 @@ class IDCT(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return from_cupy(F.idctn(to_cupy(x), type=type, axes=dim, norm=norm))
+        return apply_cupy(F.idctn, x, type=type, axes=dim, norm=norm)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = from_cupy(F.dctn(to_cupy(x), type=ctx.type, axes=ctx.dim, norm=norm))
+        x = apply_cupy(F.dctn, x, type=ctx.type, axes=ctx.dim, norm=norm)
         return x, None, None, None
 
 
@@ -52,12 +52,12 @@ class DST(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return from_cupy(F.dstn(to_cupy(x), type=type, axes=dim, norm=norm))
+        return apply_cupy(F.dstn, x, type=type, axes=dim, norm=norm)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = from_cupy(F.idstn(to_cupy(x), type=ctx.type, axes=ctx.dim, norm=norm))
+        x = apply_cupy(F.idstn, x, type=ctx.type, axes=ctx.dim, norm=norm)
         return x, None, None, None
 
 
@@ -68,12 +68,12 @@ class IDST(torch.autograd.Function):
         ctx.dim = dim
         ctx.norm = norm or "backward"
         ctx.type = type
-        return from_cupy(F.idstn(to_cupy(x), type=type, axes=dim, norm=norm))
+        return apply_cupy(F.idstn, x, type=type, axes=dim, norm=norm)
 
     @staticmethod
     def backward(ctx, x):
         norm = flipnorm[ctx.norm]
-        x = from_cupy(F.dstn(to_cupy(x), type=ctx.type, axes=ctx.dim, norm=norm))
+        x = apply_cupy(F.dstn, x, type=ctx.type, axes=ctx.dim, norm=norm)
         return x, None, None, None
 
 
@@ -85,3 +85,11 @@ def to_cupy(x):
 def from_cupy(x):
     """Convert a cupy tensor to torch without copy"""
     return from_dlpack(cupy_to_dlpack(x))
+
+
+def apply_cupy(func, x, *args, **kwargs):
+    """Manipulate tensor to apply a cupy function"""
+    if x.is_complex():
+        return (apply_cupy(func, x.real, *args, **kwargs) +
+                apply_cupy(func, x.real, *args, **kwargs) * 1j)
+    return from_cupy(func(to_cupy(x), *args, **kwargs))
