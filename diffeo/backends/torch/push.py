@@ -18,7 +18,7 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
         usually expected in torch's grid_sample.
     shape : list[int], optional
         Output shape
-    bound : {'dft', 'dct[1|2|3|4]', 'dft[1|2|3|4]'}, default='dct2'
+    bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}, default='dct2'
         Boundary conditions. PyTorch does not really support them,
         so "reflection" (which is equivalent to "dct2") is always used.
     has_identity : bool, default=False
@@ -54,7 +54,7 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
         Displacement field, in voxels.
     shape : list[int], optional
         Output shape
-    bound : {'dft', 'dct[1|2|3|4]', 'dft[1|2|3|4]'}, default='dct2'
+    bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}, default='dct2'
         Boundary conditions. PyTorch does not really support them,
         so "reflection" (which is equivalent to "dct2") is always used.
     has_identity : bool, default=False

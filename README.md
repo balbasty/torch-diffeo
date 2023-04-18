@@ -379,7 +379,7 @@ image : (..., *shape_in, C) tensor
     Input image.
 flow : (..., *shape_out, D) tensor
     Displacement field, in voxels.
-bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
     Boundary conditions.
     Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
     in which case the image is assumed to be a flow field.
@@ -393,7 +393,7 @@ warped : (..., *shape_out, C) tensor
     Warped image
 """
 
-def push(image, flow, shape=None, bound='dct2', has_identity=False) ...:
+def push(image, flow, shape=None, bound='dct2', has_identity=False): ...
 """Splat an image according to a (voxel) displacement field.
 
 Parameters
@@ -404,7 +404,7 @@ flow : (..., *shape_out, D) tensor
     Displacement field, in voxels.
 shape : list[int], optional
     Output shape
-bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
     Boundary conditions.
     Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
     in which case the image is assumed to be a flow field.
@@ -428,7 +428,7 @@ flow : (..., *shape_out, D) tensor
     Displacement field, in voxels.
 shape : list[int], optional
     Output shape
-bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
     Boundary conditions.
     Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
     in which case the count image may have D channels.
@@ -451,7 +451,7 @@ image : (..., *shape_in, C) tensor
     Input image.
 flow : (..., *shape_out, D) tensor
     Displacement field, in voxels.
-bound : {'dft', 'dct{1|2|3|4}', 'dft{1|2|3|4}'}, default='dct2'
+bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
     Boundary conditions.
     Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
     in which case the image is assumed to be a flow field.

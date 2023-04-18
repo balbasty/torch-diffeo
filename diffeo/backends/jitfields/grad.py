@@ -14,7 +14,7 @@ def grad(image, flow, bound='dct2', has_identity=False):
         Input image.
     flow : (..., *shape_out, D) tensor
         Displacement field, in voxels.
-    bound : {'dft', 'dct[1|2|3|4]', 'dft[1|2|3|4]'}, default='dct2'
+    bound : {'dft', 'dct[1|2|3|4]', 'dst[1|2|3|4]'}, default='dct2'
         Boundary conditions.
     has_identity : bool, default=False
         - If False, `flow` is contains relative displacement.
