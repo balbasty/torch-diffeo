@@ -118,4 +118,4 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         plt.show()
 
 
-register(bound='sliding', device='cuda', lr=1e-4)
+register(bound='dct2', device='cpu')

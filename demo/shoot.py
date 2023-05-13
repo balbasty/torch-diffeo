@@ -17,7 +17,7 @@ def to_rgb(x):
 
 
 def register(fix=None, mov=None, metric=None, hilbert=True,
-             lr=1e-2, nbiter=256, bound='circulant', device='cuda'):
+             lr=1e-2, nbiter=256, bound='circulant', device='cpu'):
     """Register two images by minimizing the squared differences.
 
     .. The deformation is encoded by a geodesic.
@@ -25,7 +25,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
 
     Parameters
     ----------
-    fix : (*spatial) tensorgit push --tagsgit tag -d 0.2.2
+    fix : (*spatial) tensor
         Fixed image
     mov : (*spatial) tensor
         Moving image
@@ -48,7 +48,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
     fix, mov = fix.to(dtype=torch.double), mov.to(dtype=torch.double)
     if metric is None:
         metric = Mixture(
-            absolute=1e-4,
+            absolute=1e-3,
             membrane=1e-3,
             bending=0.2,
             lame_shears=0.05,
