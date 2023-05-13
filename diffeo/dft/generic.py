@@ -11,7 +11,8 @@ def dtn(
     type: Union[str, List[str]] = 'dft',
     inverse: bool = False,
     dim: Optional[Union[int, List[int]]] = None,
-    norm: Optional[str] = None,
+    norm: Optional[str] = "backward",
+    force_real: bool = False,
 ) -> Tensor:
     """Compute a multidimensional Discrete Transform, different per dimension.
 
@@ -40,6 +41,8 @@ def dtn(
             type = 'i' + type
         dt = getattr(alltransforms, type)
         x = dt(x, dim=dim, norm=norm)
+        if force_real:
+            x = real(x)
         return x
 
     # different types across dimensions
@@ -56,6 +59,8 @@ def dtn(
             t = 'i' + t
         dt = getattr(alltransforms, t)
         x = dt(x, dim=d, norm=n)
+        if force_real:
+            x = real(x)
     return x
 
 
@@ -64,6 +69,7 @@ def kerdtn(
     ndim: int,
     sym: Union[bool, List[bool]] = False,
     inverse: bool = False,
+    norm: Optional[str] = "backward",
 ) -> Tensor:
     """Kernel discrete transform
 
@@ -93,17 +99,20 @@ def kerdtn(
     dbound = ['dct1' if is_sym else 'dft' for is_sym in sym]
     obound = ['dst1' if is_sym else 'dft' for is_sym in sym]
 
+    def apply(x, bound):
+        return dtn(x, bound, dim=dims, inverse=inverse, force_real=True, norm=norm)
+
     nbatch = kernel.ndim - ndim
     if nbatch == 2:
         kernel, y = torch.zeros_like(kernel), kernel
         for d, m in enumerate(sym):
-            kernel[d, d] = dtn(y[d, d], dbound, dim=dims, inverse=inverse)
+            kernel[d, d] = apply(y[d, d], dbound)
             for dd in range(d):
-                kernel[d, dd] = dtn(y[d, dd], obound, dim=dims, inverse=inverse)
+                kernel[d, dd] = apply(y[d, dd], obound)
             for dd in range(d+1, ndim):
-                kernel[d, dd] = dtn(y[d, dd], obound, dim=dims, inverse=inverse)
+                kernel[d, dd] = apply(y[d, dd], obound)
     else:
-        kernel = dtn(kernel, dbound, dim=dims, inverse=inverse)
+        kernel = apply(kernel, dbound)
     return kernel
 
 

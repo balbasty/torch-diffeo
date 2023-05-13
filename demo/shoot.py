@@ -25,7 +25,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
 
     Parameters
     ----------
-    fix : (*spatial) tensor
+    fix : (*spatial) tensorgit push --tagsgit tag -d 0.2.2
         Fixed image
     mov : (*spatial) tensor
         Moving image
@@ -45,6 +45,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
     if mov is None:
         mov = circle([192, 192], device=device)
     fix, mov = fix.to(device=device), mov.to(device=device)
+    fix, mov = fix.to(dtype=torch.double), mov.to(dtype=torch.double)
     if metric is None:
         metric = Mixture(
             absolute=1e-4,
@@ -53,7 +54,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
             lame_shears=0.05,
             lame_div=0.2,
             factor=0.1,
-            use_diff=True,
+            use_diff=False,
             cache=True,
             bound=bound,
         )
@@ -64,6 +65,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
 
     exp = Shoot(metric, fast=True)
     pull = Pull()
+    max_ls = 12
 
     def penalty(v):
         v = v.movedim(1, -1)
@@ -83,7 +85,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
                 vel.grad = metric.inverse(vel.grad.movedim(1, -1)).movedim(-1, 1)
             ok = False
             vel.sub_(vel.grad, alpha=lr)
-            for nls in range(12):
+            for nls in range(max_ls):
                 phi = exp(vel)
                 wrp = pull(mov, phi)
                 new_loss = (wrp-fix).square().sum()
@@ -94,7 +96,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
                     break
                 lr /= 2
                 vel.add_(vel.grad, alpha=lr)
-            if not ok:
+            if max_ls and not ok:
                 print('converged?')
                 break
 
@@ -117,4 +119,4 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         plt.show()
 
 
-register()
+register(bound='dct2')

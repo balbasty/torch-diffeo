@@ -26,7 +26,7 @@ def absolute(grid, voxel_size=1, bound='circulant'):
     return grid
 
 
-def membrane(grid, voxel_size=1, bound='circulant', _norm=True):
+def membrane(grid, voxel_size=1, bound='circulant', _norm=True, _ndim=None):
     """Precision matrix for the Membrane energy of a deformation grid
 
     Parameters
@@ -40,7 +40,7 @@ def membrane(grid, voxel_size=1, bound='circulant', _norm=True):
     field : (..., *spatial, dim) tensor
 
     """
-    ndim = grid.shape[-1]
+    ndim = _ndim or grid.shape[-1]
     bound = ensure_list(bound, ndim)
     bound = list(map(lambda x: bound2dft.get(x, x), bound))
     if has_sliding(bound):
@@ -64,7 +64,7 @@ def membrane(grid, voxel_size=1, bound='circulant', _norm=True):
     return grid
 
 
-def bending(grid, voxel_size=1, bound='circulant', _norm=True):
+def bending(grid, voxel_size=1, bound='circulant', _norm=True, _ndim=None):
     """Precision matrix for the Bending energy of a deformation grid
 
     Parameters
@@ -79,7 +79,7 @@ def bending(grid, voxel_size=1, bound='circulant', _norm=True):
     field : (..., *spatial, dim) tensor
 
     """
-    ndim = grid.shape[-1]
+    ndim = _ndim or grid.shape[-1]
     bound = ensure_list(bound, ndim)
     bound = list(map(lambda x: bound2dft.get(x, x), bound))
     if has_sliding(bound):
@@ -318,11 +318,13 @@ def is_zero(x: Union[float, torch.Tensor]) -> bool:
 def sliding(func, grid, bound, voxel_size=1):
     """Apply membrane/bending with sliding boundaries"""
     backend = dict(dtype=grid.dtype, device=grid.device)
-    dim = grid.shape[-1]
-    voxel_size = make_vector(voxel_size, dim, **backend)
+    ndim = grid.shape[-1]
+    voxel_size = make_vector(voxel_size, ndim, **backend)
     grid, grid0 = torch.empty_like(grid), grid
     for d, g in enumerate(grid0.unbind(-1)):
-        grid[..., d] = func(g.unsqueeze(-1), voxel_size,
-                            bound=sliding2dft(bound, d), _norm=False)
+        grid[..., d] = func(
+            g.unsqueeze(-1), voxel_size,
+            bound=sliding2dft(bound, d), _norm=False, _ndim=ndim
+        ).squeeze(-1)
     grid.mul_(voxel_size.square())
     return grid

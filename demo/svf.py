@@ -20,8 +20,9 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
              lr=1e-3, nbiter=320, bound='circulant', device=None):
     """Register two images by minimizing the squared differences.
 
-    .. The deformation is encoded by a stationary velocity field.
-    .. Optimization uses gradient descent.
+    !!! note
+        - The deformation is encoded by a stationary velocity field.
+        - Optimization uses gradient descent.
 
     Parameters
     ----------
@@ -81,7 +82,22 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         with torch.no_grad():
             if hilbert:
                 vel.grad = metric.inverse(vel.grad.movedim(1, -1)).movedim(-1, 1)
+            ok = False
             vel.sub_(vel.grad, alpha=lr)
+            for nls in range(24):
+                phi = exp(vel)
+                wrp = pull(mov, phi)
+                new_loss = (wrp-fix).square().sum()
+                new_loss += penalty(vel)
+                if new_loss < loss:
+                    ok = True
+                    # lr *= 2
+                    break
+                lr /= 2
+                vel.add_(vel.grad, alpha=lr)
+            if not ok:
+                print('converged?')
+                break
 
         print(f'{n:03d} | {loss.item()/mov.ndim:6.3g}', end='\r')
 
@@ -102,4 +118,4 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         plt.show()
 
 
-register(bound=['dft', 'dct2'])
+register(bound='sliding', device='cuda', lr=1e-4)
