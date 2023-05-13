@@ -103,6 +103,34 @@ class Mixture(Metric):
         self._greens_fourier = {}
         self.use_diff = use_diff
 
+    def _str_opt(self):
+        def make_opt(key):
+            value = getattr(self, key)
+            if torch.is_tensor(value):
+                if value.numel() == 1:
+                    value = value.item()
+                else:
+                    value = value.tolist()
+            if isinstance(getattr(self, key), nn.Parameter):
+                value = f'Parameter({value})'
+            if value:
+                return f'{key}={value}'
+            else:
+                return ''
+        keys = ['factor', 'absolute', 'membrane', 'bending',
+                'lame_shears', 'lame_div', 'bound']
+        opt = ', '.join(map(make_opt, filter(bool, keys)))
+        return opt
+
+    def _str(self):
+        return f'{type(self).__name__}({self._str_opt()})'
+
+    def __str__(self):
+        return self._str()
+
+    def __repr__(self):
+        return self._str()
+
     def forward(self, x, factor=True):
         # x: (..., *spatial, D) tensor
         # -> (..., *spatial, D) tensor
