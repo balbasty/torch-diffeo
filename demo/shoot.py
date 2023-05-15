@@ -119,4 +119,4 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         plt.show()
 
 
-register(bound='dct2')
+register(bound='dft')
