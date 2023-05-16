@@ -204,9 +204,7 @@ def matvec2(A, v):
 
 @torch.jit.script
 def matvec1(A, v):
-    Av = torch.empty_like(v)
-    Av[0] = A[0, 0] * v[0]
-    return Av
+    return (A[0, 0] * v[0])[None]
 
 
 def batchmatvec(mat, vec):
@@ -224,4 +222,36 @@ def batchmatvec(mat, vec):
         mv = matvec3
     out = mv(mat, vec)
     out = out.movedim(0, -1)
+    return out
+
+
+@torch.jit.script
+def dot3(m, v):
+    return m[0] * v[0] + m[1] * v[1] + m[2] * v[2]
+
+
+@torch.jit.script
+def dot2(m, v):
+    return m[0] * v[0] + m[1] * v[1]
+
+
+@torch.jit.script
+def dot1(m, v):
+    return m[0] * v[0]
+
+
+def batchdot(left, right):
+    if not left.is_cuda:
+        return matvec(left.unsqueeze(-2), right).squeeze(-1)
+    ndim = left.shape[-1]
+    left = left.movedim(-1, 0)
+    right = right.movedim(-1, 0)
+    if ndim == 1:
+        dot = dot1
+    elif ndim == 2:
+        dot = dot2
+    else:
+        assert ndim == 3
+        dot = dot3
+    out = dot(left, right)
     return out

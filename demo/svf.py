@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 
 def to_rgb(x):
     x = x.movedim(1, -1)
-    vmin = x.min()
-    vmax = x.max()
+    vmax = max(x.max().abs(), x.min().abs())
+    vmin = -vmax
     tmp = x.new_zeros([*x.shape[:-1], 3])
     tmp[..., :x.shape[-1]] = x
     tmp.add_(vmin).div_(vmax-vmin).mul_(255).round_()
@@ -17,7 +17,7 @@ def to_rgb(x):
 
 
 def register(fix=None, mov=None, metric=None, hilbert=True,
-             lr=1e-3, nbiter=320, bound='circulant', device=None):
+             lr=1e-2, nbiter=640, bound='circulant', device=None):
     """Register two images by minimizing the squared differences.
 
     !!! note
@@ -52,9 +52,10 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
     if metric is None:
         metric = Mixture(
             absolute=1e-3,
+            bending=0.2,
             lame_shears=0.1,
             lame_div=1e-3,
-            factor=1e-2,
+            factor=1,
             use_diff=True,
             cache=True,
             bound=bound)
@@ -62,6 +63,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
     vel = mov.new_zeros([1, fix.ndim, *fix.shape], requires_grad=True)
     fix = fix[None, None]
     mov = mov[None, None]
+    alpha = 400
 
     exp = Exp(anagrad=True, bound=bound)
     pull = Pull()
@@ -76,7 +78,7 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         vel.grad = None
         phi = exp(vel)
         wrp = pull(mov, phi)
-        loss = (wrp-fix).square().sum()
+        loss = (wrp-fix).square().sum() * alpha
         loss += penalty(vel)
         loss.backward()
         with torch.no_grad():
@@ -87,11 +89,11 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
             for nls in range(24):
                 phi = exp(vel)
                 wrp = pull(mov, phi)
-                new_loss = (wrp-fix).square().sum()
+                new_loss = (wrp-fix).square().sum() * alpha
                 new_loss += penalty(vel)
                 if new_loss < loss:
                     ok = True
-                    # lr *= 2
+                    lr *= 2
                     break
                 lr /= 2
                 vel.add_(vel.grad, alpha=lr)
@@ -118,4 +120,4 @@ def register(fix=None, mov=None, metric=None, hilbert=True,
         plt.show()
 
 
-register(bound='dct2', device='cpu')
+register(bound='dct2', device='cuda')

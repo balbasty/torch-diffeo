@@ -6,6 +6,7 @@ from typing import Union
 from diffeo.dft import FrequencyTransform
 from diffeo.metrics.base import Metric
 from diffeo.linalg import batchinv
+from diffeo.conv import flowconv
 from . import kernels, forward
 
 
@@ -70,26 +71,41 @@ class Mixture(Metric):
             learnable_div = True
         super().__init__(factor, voxel_size, bound, learnable_factor, cache)
         if learnable_absolute:
-            self.absolute = nn.Parameter(torch.as_tensor(absolute), requires_grad=True)
+            self.absolute = torch.as_tensor(absolute)
+            if not self.absolute.dtype.is_floating_point:
+                self.absolute = self.absolute.to(torch.get_default_dtype())
+            self.absolute = nn.Parameter(self.absolute, requires_grad=True)
         else:
             self.absolute = absolute
         if learnable_membrane:
-            self.membrane = nn.Parameter(torch.as_tensor(membrane), requires_grad=True)
+            self.membrane = torch.as_tensor(membrane)
+            if not self.membrane.dtype.is_floating_point:
+                self.membrane = self.membrane.to(torch.get_default_dtype())
+            self.membrane = nn.Parameter(self.membrane, requires_grad=True)
         else:
             self.membrane = membrane
         if learnable_bending:
-            self.bending = nn.Parameter(torch.as_tensor(bending), requires_grad=True)
+            self.bending = torch.as_tensor(bending)
+            if not self.bending.dtype.is_floating_point:
+                self.bending = self.bending.to(torch.get_default_dtype())
+            self.bending = nn.Parameter(self.bending, requires_grad=True)
         else:
             self.bending = bending
         if learnable_shears:
-            self.lame_shears = nn.Parameter(torch.as_tensor(lame_shears), requires_grad=True)
+            self.lame_shears = torch.as_tensor(lame_shears)
+            if not self.lame_shears.dtype.is_floating_point:
+                self.lame_shears = self.lame_shears.to(torch.get_default_dtype())
+            self.lame_shears = nn.Parameter(self.lame_shears, requires_grad=True)
         else:
             self.lame_shears = lame_shears
         if learnable_div:
-            self.lame_div = nn.Parameter(torch.as_tensor(lame_div), requires_grad=True)
+            self.lame_div = torch.as_tensor(lame_div)
+            if not self.lame_div.dtype.is_floating_point:
+                self.lame_div = self.lame_div.to(torch.get_default_dtype())
+            self.lame_div = nn.Parameter(self.lame_div, requires_grad=True)
         else:
             self.lame_div = lame_div
-        if (
+        if cache and (
                 getattr(self.absolute, 'requires_grad', False) or
                 getattr(self.membrane, 'requires_grad', False) or
                 getattr(self.bending, 'requires_grad', False) or
@@ -134,7 +150,12 @@ class Mixture(Metric):
     def forward(self, x, factor=True):
         # x: (..., *spatial, D) tensor
         # -> (..., *spatial, D) tensor
-        if self.use_diff:
+        if self.use_diff == 'conv':
+            kernel = self.metric_kernel(x).movedim(-1, 0)
+            if kernel.ndim == x.shape[-1] + 2:
+                kernel = kernel.movedim(-1, 0)
+            return flowconv(x, kernel, bound=self.bound)
+        elif self.use_diff:
             return forward.mixture(
                 x,
                 absolute=self.absolute,

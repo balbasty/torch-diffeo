@@ -2,7 +2,7 @@ import torch
 from diffeo.utils import cartesian_grid, ensure_list
 from diffeo.diffdiv import diff
 from diffeo.backends import interpol as interpol_backend
-from diffeo.linalg import batchmatvec
+from diffeo.linalg import batchmatvec, batchdot
 from diffeo.bounds import bound2dft, sliding2dft, has_sliding
 
 
@@ -291,6 +291,59 @@ def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
         jac_left[..., d] += 1
         new_jac[..., d] = batchmatvec(jac, jac_left)
     return new_jac.transpose(-1, -2)
+
+
+def jacmatvec(flow, vec, bound='circulant', voxel_size=1,
+              has_identity=False, transpose=False):
+    r"""Compute the matrix-vector product between the Jacobian of a
+    transformation field and a vector field.
+
+    Parameters
+    ----------
+    flow : (..., *spatial, dim) tensor
+        Transformation or displacement field
+    vec : (..., *spatial, dim) tensor
+        Vector field
+    bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+        Boundary condition
+    voxel_size : [sequence of] float, default=1
+        Voxel size
+    has_identity : bool, default=False
+        Whether the input is a transformation (True) or displacement
+        (False) field.
+    transpose : bool, default=False
+        Transpose the Jacobian before taking the product.
+
+        - If `False`: return $\nu_i = \sum_j \frac{\partial \phi_i}{\partial x_j} v_j$
+        - If `True`: return $\nu_i = \sum_i \frac{\partial \phi_j}{\partial x_i} v_j$
+
+    Returns
+    -------
+    matvec : (..., *spatial, dim) tensor
+        Matrix-vector product
+
+    """
+    ndim = flow.shape[-1]
+    if has_identity:
+        flow = sub_identity(flow)
+    bound = ensure_list(bound, ndim)
+    bound = list(map(lambda x: bound2dft.get(x, x), bound))
+    dims = list(range(-ndim, 0))
+    fullshape = torch.broadcast_shapes(flow.shape, vec.shape)
+    if transpose:
+        matvec = flow.new_zeros(fullshape)
+    else:
+        matvec = flow.new_empty(fullshape)
+    for d in range(ndim):
+        bound1 = sliding2dft(bound, d)
+        jac = diff(flow[..., d], dim=dims, bound=bound1,
+                   voxel_size=voxel_size, side='c')
+        jac[..., d] += 1
+        if transpose:
+            matvec.addcmul_(jac, vec[..., d, None])
+        else:
+            matvec[..., d] = batchdot(jac, vec)
+    return matvec
 
 
 def bracket(vel_left, vel_right, bound='circulant', has_identity=False,

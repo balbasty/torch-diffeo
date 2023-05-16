@@ -2,8 +2,8 @@
 import torch
 from diffeo.metrics.discrete import Mixture
 from diffeo.backends import interpol
-from diffeo.linalg import batchmatvec, batchinv
-from diffeo.flows import jacobian, compose
+from diffeo.linalg import batchmatvec, batchinv, matvec
+from diffeo.flows import jacobian, compose, jacmatvec
 
 
 default_metric = Mixture(absolute=0.001, membrane=0.1)
@@ -77,9 +77,10 @@ def shoot(vel, metric=default_metric, steps=None, fast=True, verbose=False,
             #   but describing this might be a bit tricky. The approach here
             #   was the most stable one I could find - although it does lose
             #   some energy as < v_t, u_t> decreases over time steps.
-            jac = jacobian(vel, bound=metric.bound, add_identity=False).neg_()
-            jac.diagonal(0, -1, -2).add_(1)
-            mom = batchmatvec(jac.transpose(-1, -2), mom)
+            # jac = jacobian(vel, bound=metric.bound, add_identity=False).neg_()
+            # jac.diagonal(0, -1, -2).add_(1)
+            # mom = batchmatvec(jac.transpose(-1, -2), mom)
+            mom = jacmatvec(-vel, mom, bound=metric.bound, transpose=True)
             mom = backend.push(mom, vel, bound=metric.bound)
         else:
             # push initial momentum using full flow
