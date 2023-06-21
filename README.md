@@ -518,7 +518,7 @@ velocity fields should work fine, however.
 
 All backends implement the following function:
 ```python
-def pull(image, flow, bound='dct2', has_identity=False): ...
+def pull(image, flow, bound='dct2', has_identity=False, order=1): ...
 """Warp an image according to a (voxel) displacement field.
 
 Parameters
@@ -534,6 +534,9 @@ bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
 has_identity : bool, default=False
     - If False, `flow` is contains relative displacement.
     - If True, `flow` contains absolute coordinates.
+order : int, default=1
+    Order of the spline encoding the input `image`.
+    Should generally only be used if `image` is a flow field.
 
 Returns
 -------
@@ -541,7 +544,7 @@ warped : (..., *shape_out, C) tensor
     Warped image
 """
 
-def push(image, flow, shape=None, bound='dct2', has_identity=False): ...
+def push(image, flow, shape=None, bound='dct2', has_identity=False, order=1): ...
 """Splat an image according to a (voxel) displacement field.
 
 Parameters
@@ -559,6 +562,9 @@ bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
 has_identity : bool, default=False
     - If False, `flow` is contains relative displacement.
     - If True, `flow` contains absolute coordinates.
+order : int, default=1
+    Order of the spline encoding the input `image`.
+    Should generally only be used if `image` is a flow field.
 
 Returns
 -------
@@ -567,7 +573,7 @@ pushed : (..., *shape_out, C) tensor
 
 """
 
-def count(flow, shape=None, bound='dct2', has_identity=False): ...
+def count(flow, shape=None, bound='dct2', has_identity=False, order=1): ...
 """Splat an image of ones according to a (voxel) displacement field.
 
 Parameters
@@ -583,6 +589,9 @@ bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
 has_identity : bool, default=False
     - If False, `flow` is contains relative displacement.
     - If True, `flow` contains absolute coordinates.
+order : int, default=1
+    Order of the spline encoding the input `image`.
+    Should generally only be used if `image` is a flow field.
 
 Returns
 -------
@@ -590,7 +599,7 @@ count : (..., *shape_out, 1|D) tensor
     Count image
 """
 
-def grad(image, flow, bound='dct2', has_identity=False): ...
+def grad(image, flow, bound='dct2', has_identity=False, order=1): ...
 """Compute spatial gradients of image according to a (voxel) displacement field.
 
 Parameters
@@ -606,10 +615,44 @@ bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
 has_identity : bool, default=False
     - If False, `flow` is contains relative displacement.
     - If True, `flow` contains absolute coordinates.
+order : int, default=1
+    Order of the spline encoding the input `image`.
+    Should generally only be used if `image` is a flow field.
 
 Returns
 -------
 grad : (..., *shape_out, C, D) tensor
     Sampled gradients
+"""
+
+
+def resize(ndim, image, factor=None, shape=None, anchor='center', bound='dct2', order=1): ...
+"""Upsample using centers or edges of the corner voxels as anchors.
+
+Parameters
+----------
+ndim : int
+    Number of spatial dimensions
+image : (..., *shape_in, C) tensor
+    Input image
+factor: float or list[float]
+OR
+shape : int or list[int]
+    Either the resizing factor (upsample: > 1, downsample: < 1) or the output shape.
+anchor : {'center', 'edge'}
+    Align either the centers or edges of the corner voxels across levels.
+bound : {'dft', 'dct{1|2|3|4}', 'dst{1|2|3|4}'}, default='dct2'
+    Boundary conditions.
+    Can also be one for {'circulant', 'neumann', 'dirichlet', 'sliding'},
+    in which case the image is assumed to be a flow field.
+order : int, default=1
+    Order of the spline encoding the input `image`.
+    Should generally only be used if `image` is a flow field.
+
+Returns
+-------
+image : (..., *shape_out, C) tensor
+    Resized image
+
 """
 ```
