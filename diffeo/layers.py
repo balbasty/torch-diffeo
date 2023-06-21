@@ -36,17 +36,14 @@ class Exp(nn.Module):
             Backend to use to implement resampling.
             Must be one of the modules under `diffeo.backends`.
 
-        Notes
-        -----
-        The number of equivalent Euler integration steps is `2**steps`
-
-        Analytical gradients use less memory than autograd gradients,
-        as they do not require storing intermediate time steps during
-        scaling and squaring. However, they may be slightly less accurate.
-
-        In differential equation terms, autograd corresponds to the
-        strategy "discretize then optimize", whereas analytical gradients
-        correspond to the strategy "optimize then discretize".
+        !!! notes
+            - The number of equivalent Euler integration steps is `2**steps`
+            - Analytical gradients use less memory than autograd gradients,
+              as they do not require storing intermediate time steps during
+              scaling and squaring. However, they may be slightly less accurate.
+            - In differential equation terms, autograd corresponds to the
+              strategy "discretize then optimize", whereas analytical gradients
+              correspond to the strategy "optimize then discretize".
         """
         super().__init__()
         self.bound = bound

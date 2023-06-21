@@ -10,42 +10,34 @@ modern `torch.fft` module. To install with pip, simply do:
 ```shell
 pip install "torch-diffeo @ git+https://github.com/balbasty/torch-diffeo"
 ```
-
-To use the DCT/DST boundary modes (which allow using Neumann or Dirichlet
-boundary conditions), `scipy` is further required. It is bundled with 
-`torch-diffeo` under the `[dct]` tag:
+However, it is in general advised to install pytorch using `conda`
+to minimizing conflicts:
 ```shell
-pip install "torch-diffeo[dct] @ git+https://github.com/balbasty/torch-diffeo"
-```
-If you are running the GPU version of pytorch *and* wish to use DCT/DST, 
-`cupy` is further required. Again, it is bundled under the `[cuda]` tag:
-```shell
-pip install "torch-diffeo[dct,cuda] @ git+https://github.com/balbasty/torch-diffeo"
-```
-However, it is in general advised to install both pytorch and cupy using 
-`conda`, thereby minimizing conflicts:
-```shell
-conda install -c pytorch -c conda-forge pytorch cupy scipy cudatoolkit=10.2 
+conda install -c pytorch -c nvidia pytorch cudatoolkit=10.2
 pip install "torch-diffeo @ git+https://github.com/balbasty/torch-diffeo"
 ```
 
 ## Layers
 
 ```python
-Exp(bound='circulant', steps=8, anagrad=False): ...
+Exp(bound='circulant', order=1, steps=8, anagrad=False): ...
+ExpInv(bound='circulant', order=1, steps=8, anagrad=False): ...
+ExpBoth(bound='circulant', order=1, steps=8, anagrad=False): ...
 """Exponentiate a Stationary Velocity Field
 
 Parameters
 ----------
 bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
+order : int
+    Order of encoding splines.
 steps : int
     Number of scaling and squaring steps.
 anagrad : bool
     Use analytical gradients instead of autograd.
 """
 
-BCH(bound='circulant', order=2): ...
+BCH(bound='circulant', trunc=2, order=1): ...
 """Compose two Stationary Velocity Fields using the BCH formula
 
 The Baker–Campbell–Hausdorff (BCH) allows computing z such that
@@ -57,8 +49,10 @@ Parameters
 ----------
 bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
-order : int
+trunc : int
     Maximum order used in the BCH series
+order : int
+    Order of encoding splines
 """
 
 Shoot(metric=Mixture(), steps=8, fast=True): ...
@@ -76,13 +70,15 @@ fast : int
     Use a faster but slightly less accurate integration scheme.
 """
 
-Compose(bound='circulant'): ...
+Compose(bound='circulant', order=1): ...
 """Compose two Displacement Fields
 
 Parameters
 ----------
 bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
     Boundary conditions.
+order : int
+    Order of encoding splines
 """
 
 Pull(bound='wrap'): ...
@@ -119,6 +115,121 @@ bound : [list of] {'wrap', 'reflect', 'mirror'}
     If splatting a displacement field, can also be one of the 
     metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
 """
+
+ToCoeff(bound='wrap', order=1): ...
+"""Compute interpolating spline coefficient
+
+Parameters
+----------
+bound : [list of] {'wrap', 'reflect', 'mirror'}
+    Boundary conditions.
+    If filtering a displacement field, can also be one of the
+    metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
+"""
+
+FromCoeff(bound='wrap', order=1): ...
+"""Interpolate spline at integer locations
+
+Parameters
+----------
+bound : [list of] {'wrap', 'reflect', 'mirror'}
+    Boundary conditions.
+    If filtering a displacement field, can also be one of the
+    metrics bounds: {'circulant', 'neumann', 'dirichlet', 'sliding'}
+"""
+
+Upsample(factor=2, order=1, bound='wrap', anchor='center',
+         prefilter=False, postfilter=False): ...
+"""
+Upsample an image
+
+Parameters
+----------
+factor : [list of] int
+    Upsampling factor
+order : int
+    Spline interpolation order
+bound : [list of] {'wrap', 'reflect', 'mirror'}
+    Boundary conditions.
+anchor : {'center', 'edge'}
+    Align either the centers or edges of the corner voxels across levels.
+prefilter : bool
+    Apply spline prefiltering
+    (i.e., convert input to interpolating spline coefficients)
+postfilter : bool
+    Apply spline postfiltering
+    (i.e., convert output to interpolating spline coefficients)
+"""
+
+Downsample(factor=2, order=1, bound='wrap', anchor='center',
+           prefilter=False, postfilter=False): ...
+"""
+Downsample an image
+
+Parameters
+----------
+factor : [list of] int
+    Downsampling factor
+order : int
+    Spline interpolation order
+bound : [list of] {'wrap', 'reflect', 'mirror'}
+    Boundary conditions.
+anchor : {'center', 'edge'}
+    Align either the centers or edges of the corner voxels across levels.
+prefilter : bool
+    Apply spline prefiltering
+    (i.e., convert input to interpolating spline coefficients)
+postfilter : bool
+    Apply spline postfiltering
+    (i.e., convert output to interpolating spline coefficients)
+"""
+
+UpsampleFlow(factor=2, order=1, bound='circulant', anchor='center',
+             prefilter=False, postfilter=False): ...
+"""
+Upsample a displacement field
+
+Parameters
+----------
+factor : [list of] int
+    Upsampling factor
+order : int
+    Spline interpolation order
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
+    Boundary conditions.
+anchor : {'center', 'edge'}
+    Align either the centers or edges of the corner voxels across levels.
+prefilter : bool
+    Apply spline prefiltering
+    (i.e., convert input to interpolating spline coefficients)
+postfilter : bool
+    Apply spline postfiltering
+    (i.e., convert output to interpolating spline coefficients)
+"""
+
+DownsampleFlow(factor=2, order=1, bound='circulant', anchor='center',
+               prefilter=False, postfilter=False): ...
+"""
+Downsample a displacement field
+
+Parameters
+----------
+factor : [list of] int
+    Downsampling factor
+order : int
+    Spline interpolation order
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
+    Boundary conditions.
+anchor : {'center', 'edge'}
+    Align either the centers or edges of the corner voxels across levels.
+prefilter : bool
+    Apply spline prefiltering
+    (i.e., convert input to interpolating spline coefficients)
+postfilter : bool
+    Apply spline postfiltering
+    (i.e., convert output to interpolating spline coefficients)
+"""
+
 ```
 
 ## Metrics
@@ -243,6 +354,43 @@ learnable : bool or {'components'}
     Make `factor` a learnable parameter.
     If 'components', the individual factors (absolute, membrane, etc)
     are learned instead of the global factor, which is then fixed.
+cache : bool or int
+    Cache up to `n` kernels
+    This cannot be used when `learnable='components'`
+"""
+
+SplineMixture(absolute=0, membrane=0, bending=0, lame_shears=0, lame_div=0,
+              factor=1, voxel_size=1, bound='circulant', order=3, use_conv=True,
+              learnable=False, cache=False): ...
+"""
+Parameters
+----------
+absolute : float
+    Penalty on (squared) absolute values
+membrane: float
+    Penalty on (squared) first derivatives
+bending : float
+    Penalty on (squared) second derivatives
+lame_shears : float
+    Penalty on the (squared) symmetric component of the Jacobian
+lame_div : float
+    Penalty on the trace of the Jacobian
+factor : float
+    Global regularization factor (optionally: learnable)
+voxel_size : list[float]
+    Voxel size
+bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
+    Boundary conditions
+order : int
+    Spline order
+use_conv : bool
+    Use convolution with small kernel to perform the forward pass.
+    Otherwise, perform the convolution in Fourier space.
+learnable : bool or {'factor', 'components', 'factor+components'}
+    Make `factor` a learnable parameter.
+    If 'components', the individual factors (absolute, membrane, etc)
+    are learned instead of the global factor.
+    `True` is equivalent to `factor`.
 cache : bool or int
     Cache up to `n` kernels
     This cannot be used when `learnable='components'`
