@@ -4,7 +4,7 @@ from diffeo.bounds import bound2dft, has_sliding, sliding2dft
 import torch
 
 
-def grad(image, flow, bound='dct2', has_identity=False):
+def grad(image, flow, bound='dct2', has_identity=False, order=1):
     """Compute spatial gradients of image according to a (voxel) displacement field.
 
     Parameters
@@ -20,6 +20,9 @@ def grad(image, flow, bound='dct2', has_identity=False):
     has_identity : bool, default=False
         - If False, `flow` is contains relative displacement.
         - If True, `flow` contains absolute coordinates.
+    order : int, default=1
+        Order of the spline encoding the input `image`.
+        Should generally only be used if `image` is a flow field.
 
     Returns
     -------
@@ -38,10 +41,10 @@ def grad(image, flow, bound='dct2', has_identity=False):
         for d in range(ndim):
             image.append(_grad(
                 image0[..., d:d+1].movedim(-1, -ndim-1), flow,
-                bound=sliding2dft(bound, d), interpolation=1, extrapolate=True))
+                bound=sliding2dft(bound, d), interpolation=order, extrapolate=True))
         image = torch.cat(image, dim=ndim-2).movedim(-ndim-2, -2)
     else:
         image = image.movedim(-1, -ndim-1)
-        image = _grad(image, flow, bound=bound, interpolation=1, extrapolate=True)
+        image = _grad(image, flow, bound=bound, interpolation=order, extrapolate=True)
         image = image.movedim(-ndim-2, -2)
     return image

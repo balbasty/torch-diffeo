@@ -58,6 +58,7 @@ def shoot(vel, metric=default_metric, steps=None, fast=True, verbose=False,
 
     ndim = vel.shape[-1]
     spatial = vel.shape[-ndim-1:-1]
+    order = getattr(metric, 'order', 1)
 
     if not steps:
         # Number of time steps from an educated guess about how far to move
@@ -80,13 +81,13 @@ def shoot(vel, metric=default_metric, steps=None, fast=True, verbose=False,
             # jac = jacobian(vel, bound=metric.bound, add_identity=False).neg_()
             # jac.diagonal(0, -1, -2).add_(1)
             # mom = batchmatvec(jac.transpose(-1, -2), mom)
-            mom = jacmatvec(-vel, mom, bound=metric.bound, transpose=True)
-            mom = backend.push(mom, vel, bound=metric.bound)
+            mom = jacmatvec(-vel, mom, bound=metric.bound, order=order, transpose=True)
+            mom = backend.push(mom, vel, bound=metric.bound, order=order)
         else:
             # push initial momentum using full flow
-            jac = batchinv(jacobian(idisp, bound=metric.bound, add_identity=True))
+            jac = batchinv(jacobian(idisp, bound=metric.bound, order=order, add_identity=True))
             mom = batchmatvec(jac.transpose(-1, -2), mom0)
-            mom = backend.push(mom, idisp, bound=metric.bound)
+            mom = backend.push(mom, idisp, bound=metric.bound, order=order)
 
         # Convolve with Greens function of L
         # v_t <- inv(L) u_t
@@ -100,8 +101,8 @@ def shoot(vel, metric=default_metric, steps=None, fast=True, verbose=False,
         # JA:
         #   I found that simply using `psi <- psi - (D psi) v/T`
         #   was not so stable.
-        disp = compose(disp, -vel, bound=metric.bound)
-        idisp = compose(vel, idisp, bound=metric.bound)
+        disp = compose(disp, -vel, bound=metric.bound, order=order, backend=backend)
+        idisp = compose(vel, idisp, bound=metric.bound, order=order, backend=backend)
 
     if verbose:
         print('')

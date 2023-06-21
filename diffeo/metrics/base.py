@@ -32,6 +32,18 @@ class Metric(nn.Module):
         else:
             self.factor = factor
 
+    def _str_opt(self):
+        return ''
+
+    def _str(self):
+        return f'{type(self).__name__}({self._str_opt()})'
+
+    def __str__(self):
+        return self._str()
+
+    def __repr__(self):
+        return self._str()
+
     def cachetensor(self, cache, key, tensor):
         if self.cache:
             cache[key] = tensor

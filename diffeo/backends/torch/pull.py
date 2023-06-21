@@ -3,7 +3,7 @@ from torch.nn import functional as F
 from diffeo.utils import cartesian_grid, expand_shapes
 
 
-def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
+def pull(image, flow, bound='dct2', has_identity=False, order=1, **kwargs):
     """Warp an image according to a (voxel) displacement field.
 
     Parameters
@@ -27,6 +27,8 @@ def pull(image, flow, bound='dct2', has_identity=False, **kwargs):
         Warped image
 
     """
+    if order != 1:
+        raise NotImplementedError('backend "torch" does not implement higher order splines')
     kwargs.setdefault('align_corners', True)
     kwargs.setdefault('padding_mode', 'reflection')
     C, D = image.shape[-1], flow.shape[-1]

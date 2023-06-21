@@ -8,7 +8,7 @@ from diffeo.bounds import bound2dft, has_sliding, sliding2dft
 import torch
 
 
-def push(image, flow, shape=None, bound='dct2', has_identity=False):
+def push(image, flow, shape=None, bound='dct2', has_identity=False, order=1):
     """Splat an image according to a (voxel) displacement field.
 
     Parameters
@@ -26,6 +26,9 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
     has_identity : bool, default=False
         - If False, `flow` is contains relative displacement.
         - If True, `flow` contains absolute coordinates.
+    order : int, default=1
+        Order of the spline encoding the input `image`.
+        Should generally only be used if `image` is a flow field.
 
     Returns
     -------
@@ -44,16 +47,16 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
         for d in range(ndim):
             image.append(_push(
                 image0[..., d:d+1].movedim(-1, -ndim-1), flow, shape,
-                bound=sliding2dft(bound, d), interpolation=1, extrapolate=True))
+                bound=sliding2dft(bound, d), interpolation=order, extrapolate=True))
         image = torch.cat(image, dim=ndim-1).movedim(-ndim-1, -1)
     else:
         image = image.movedim(-1, -ndim-1)
-        image = _push(image, flow, shape, bound=bound, interpolation=1, extrapolate=True)
+        image = _push(image, flow, shape, bound=bound, interpolation=order, extrapolate=True)
         image = image.movedim(-ndim-1, -1)
     return image
 
 
-def count(flow, shape=None, bound='dct2', has_identity=False):
+def count(flow, shape=None, bound='dct2', has_identity=False, order=1):
     """Splat an image of ones according to a (voxel) displacement field.
 
     Parameters
@@ -69,6 +72,9 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
     has_identity : bool, default=False
         - If False, `flow` is contains relative displacement.
         - If True, `flow` contains absolute coordinates.
+    order : int, default=1
+        Order of the spline encoding the input `image`.
+        Should generally only be used if `image` is a flow field.
 
     Returns
     -------
@@ -86,9 +92,9 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
         for d in range(ndim):
             image.append(_count(
                 flow, shape, bound=sliding2dft(bound, d),
-                interpolation=1, extrapolate=True))
+                interpolation=order, extrapolate=True))
         image = torch.stack(image, dim=-1)
     else:
-        image = _count(flow, shape, bound=bound, interpolation=1, extrapolate=True)
+        image = _count(flow, shape, bound=bound, interpolation=order, extrapolate=True)
         image = image.unsqueeze(-1)
     return image

@@ -5,7 +5,7 @@ from diffeo.bounds import bound2dft, has_sliding, sliding2dft
 import torch
 
 
-def push(image, flow, shape=None, bound='dct2', has_identity=False):
+def push(image, flow, shape=None, bound='dct2', has_identity=False, order=1):
     """Splat an image according to a (voxel) displacement field.
 
     Parameters
@@ -21,6 +21,9 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
     has_identity : bool, default=False
         - If False, `flow` is contains relative displacement.
         - If True, `flow` contains absolute coordinates.
+    order : int, default=1
+        Order of the spline encoding the input `image`.
+        Should generally only be used if `image` is a flow field.
 
     Returns
     -------
@@ -39,13 +42,13 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
         for d in range(ndim):
             image.append(_push(
                 image0[..., d:d+1], flow, shape,
-                bound=sliding2dft(bound, d), order=1, extrapolate=True))
+                bound=sliding2dft(bound, d), order=order, extrapolate=True))
         return torch.cat(image, dim=-1)
     else:
-        return _push(image, flow, shape, bound=bound, order=1, extrapolate=True)
+        return _push(image, flow, shape, bound=bound, order=order, extrapolate=True)
 
 
-def count(flow, shape=None, bound='dct2', has_identity=False):
+def count(flow, shape=None, bound='dct2', has_identity=False, order=1):
     """Splat an image of ones according to a (voxel) displacement field.
 
     Parameters
@@ -59,6 +62,9 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
     has_identity : bool, default=False
         - If False, `flow` is contains relative displacement.
         - If True, `flow` contains absolute coordinates.
+    order : int, default=1
+        Order of the spline encoding the input `image`.
+        Should generally only be used if `image` is a flow field.
 
     Returns
     -------
@@ -76,7 +82,7 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
         for d in range(ndim):
             image.append(_count(
                 flow, shape,
-                bound=sliding2dft(bound, d), order=1, extrapolate=True))
+                bound=sliding2dft(bound, d), order=order, extrapolate=True))
         return torch.stack(image, dim=-1)
     else:
-        return _count(flow, shape, bound=bound, order=1, extrapolate=True).unsqueeze(-1)
+        return _count(flow, shape, bound=bound, order=order, extrapolate=True).unsqueeze(-1)

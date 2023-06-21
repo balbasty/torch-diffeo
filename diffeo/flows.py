@@ -1,7 +1,7 @@
 import torch
 from diffeo.utils import cartesian_grid, ensure_list
 from diffeo.diffdiv import diff
-from diffeo.backends import interpol as interpol_backend
+from diffeo.backends import default_backend
 from diffeo.linalg import batchmatvec, batchdot
 from diffeo.bounds import bound2dft, sliding2dft, has_sliding
 
@@ -106,7 +106,27 @@ def identity(shape, **backend):
     return torch.stack(cartesian_grid(shape, **backend), dim=-1)
 
 
-def affine_field(affine, shape, add_identity=False):
+def identity_like(flow):
+    """Returns an identity transformation field.
+
+    Parameters
+    ----------
+    flow : (..., *shape, dim) tensor
+        Template flow.
+
+    Returns
+    -------
+    grid : (*shape, dim) tensor
+        Transformation field
+
+    """
+    ndim = flow.shape[-1]
+    shape = flow.shape[-ndim-1:-1]
+    backend.setdefault(dtype=flow.dtype, device=flow.device)
+    return torch.stack(cartesian_grid(shape, **backend), dim=-1)
+
+
+def affine_field(affine, shape, *, add_identity=False):
     """Generate an affine flow field
 
     Parameters
@@ -141,8 +161,8 @@ def affine_field(affine, shape, add_identity=False):
     return flow
 
 
-def jacobian(flow, bound='circulant', voxel_size=1,
-             has_identity=False, add_identity=None):
+def jacobian(flow, *, bound='circulant', order=1,
+             has_identity=False, add_identity=None, backend=None):
     """Compute the Jacobian of a transformation field
 
     Parameters
@@ -151,8 +171,8 @@ def jacobian(flow, bound='circulant', voxel_size=1,
         Transformation or displacement field
     bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
-    voxel_size : [sequence of] float, default=1
-        Voxel size
+    order : int, default=1
+        Order of the splines that encode `flow`
     has_identity : bool, default=False
         Whether the input is a transformation (True) or displacement
         (False) field.
@@ -166,22 +186,26 @@ def jacobian(flow, bound='circulant', voxel_size=1,
         Jacobian. In each matrix: jac[i, j] = d psi[i] / d xj
 
     """
+    backend = backend or default_backend
     ndim = flow.shape[-1]
-    if has_identity:
-        flow = sub_identity(flow)
     bound = ensure_list(bound, ndim)
     bound = list(map(lambda x: bound2dft.get(x, x), bound))
-    if has_sliding(bound):
-        dims = list(range(-ndim, 0))
-        jac = flow.new_zeros([*flow.shape, ndim])
-        for d in range(ndim):
-            bound1 = sliding2dft(bound, d)
-            jac[..., d] = diff(flow[..., d], dim=dims, bound=bound1,
-                               voxel_size=voxel_size, side='c')
+    if has_identity:
+        flow = sub_identity(flow)
+        flow = backend.to_coeff(ndim, flow, bound=bound, order=order)
+    if order > 1:
+        id = identity_like(flow)
+        jac = backend.grad(flow, id, bound=bound, order=order, has_identity=True)
     else:
-        dims = list(range(-ndim-1, -1))
-        jac = diff(flow, dim=dims, bound=bound,
-                   voxel_size=voxel_size, side='c')
+        if has_sliding(bound):
+            dims = list(range(-ndim, 0))
+            jac = flow.new_zeros([*flow.shape, ndim])
+            for d in range(ndim):
+                bound1 = sliding2dft(bound, d)
+                jac[..., d] = diff(flow[..., d], dim=dims, bound=bound1, side='c')
+        else:
+            dims = list(range(-ndim-1, -1))
+            jac = diff(flow, dim=dims, bound=bound, side='c')
     if add_identity is None:
         add_identity = has_identity
     if add_identity:
@@ -189,8 +213,8 @@ def jacobian(flow, bound='circulant', voxel_size=1,
     return jac
 
 
-def jacdet(flow, bound='circulant', voxel_size=1,
-           has_identity=False, add_identity=True):
+def jacdet(flow, *, bound='circulant', order=1,
+           has_identity=False, add_identity=True, backend=None):
     """Compute the determinant of the Jacobian of a transformation field
 
     Parameters
@@ -199,8 +223,8 @@ def jacdet(flow, bound='circulant', voxel_size=1,
         Transformation or displacement field
     bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
-    voxel_size : [sequence of] float, default=1
-        Voxel size
+    order : int, default=1
+        Order of the splines that encode `flow`
     has_identity : bool, default=False
         Whether the input is a transformation (True) or displacement
         (False) field.
@@ -217,14 +241,16 @@ def jacdet(flow, bound='circulant', voxel_size=1,
     jac = jacobian(
         flow,
         bound=bound,
-        voxel_size=voxel_size,
+        order=order,
         has_identity=has_identity,
         add_identity=add_identity,
+        backend=backend,
     )
     return jac.det()
 
 
-def compose(flow_left, flow_right, bound='circulant', has_identity=False, backend=interpol_backend):
+def compose(flow_left, flow_right, *, bound='circulant', order=1,
+            has_identity=False, backend=None):
     """Compute flow_left o flow_right
 
     Parameters
@@ -232,6 +258,7 @@ def compose(flow_left, flow_right, bound='circulant', has_identity=False, backen
     flow_left : (..., *shape, D) tensor
     flow_right : (..., *shape, D) tensor
     bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    order : int, default=1
     has_identity : bool, default=False
     backend : module
 
@@ -240,18 +267,26 @@ def compose(flow_left, flow_right, bound='circulant', has_identity=False, backen
     flow : (..., *shape, D) tensor
 
     """
+    backend = backend or default_backend
+    ndim = flow_right.shape[-1]
     if has_identity:
         flow_left = sub_identity(flow_left)
-    flow = backend.pull(flow_left, flow_right, bound=bound, has_identity=has_identity)
+        flow_left = backend.to_coeff(ndim, flow_left, bound=bound, order=order)
+    else:
+        if order > 1:
+            flow_right = backend.from_coeff(ndim, flow_right, bound=bound, order=order)
+    flow = backend.pull(flow_left, flow_right, bound=bound, has_identity=has_identity, order=order)
     if flow.requires_grad:
         flow = flow + flow_right
     else:
         flow += flow_right
+    if order > 1 and not has_identity:
+        flow = backend.to_coeff(ndim, flow, bound=bound, order=order)
     return flow
 
 
-def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
-                     backend=interpol_backend):
+def compose_jacobian(jac, rhs, lhs=None, *, bound='circulant',
+                     has_identity=False, backend=None):
     """Jacobian of the composition `(lhs)o(rhs)`
 
     Parameters
@@ -274,6 +309,7 @@ def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
         Jacobian of composition
 
     """
+    backend = backend or default_backend
     if lhs is None:
         lhs = rhs
     if has_identity:
@@ -293,8 +329,8 @@ def compose_jacobian(jac, rhs, lhs=None, bound='circulant', has_identity=False,
     return new_jac.transpose(-1, -2)
 
 
-def jacmatvec(flow, vec, bound='circulant', voxel_size=1,
-              has_identity=False, transpose=False):
+def jacmatvec(flow, vec, *, bound='circulant', order=1,
+              has_identity=False, transpose=False, backend=None):
     r"""Compute the matrix-vector product between the Jacobian of a
     transformation field and a vector field.
 
@@ -306,8 +342,8 @@ def jacmatvec(flow, vec, bound='circulant', voxel_size=1,
         Vector field
     bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
-    voxel_size : [sequence of] float, default=1
-        Voxel size
+    order : int, default=1
+        Spline order
     has_identity : bool, default=False
         Whether the input is a transformation (True) or displacement
         (False) field.
@@ -323,9 +359,11 @@ def jacmatvec(flow, vec, bound='circulant', voxel_size=1,
         Matrix-vector product
 
     """
+    backend = backend or default_backend
     ndim = flow.shape[-1]
     if has_identity:
         flow = sub_identity(flow)
+        flow = backend.to_coeff(ndim, flow, bound=bound, order=order)
     bound = ensure_list(bound, ndim)
     bound = list(map(lambda x: bound2dft.get(x, x), bound))
     dims = list(range(-ndim, 0))
@@ -336,8 +374,10 @@ def jacmatvec(flow, vec, bound='circulant', voxel_size=1,
         matvec = flow.new_empty(fullshape)
     for d in range(ndim):
         bound1 = sliding2dft(bound, d)
-        jac = diff(flow[..., d], dim=dims, bound=bound1,
-                   voxel_size=voxel_size, side='c')
+        if order == 1:
+            jac = diff(flow[..., d], dim=dims, bound=bound1, side='c')
+        else:
+            jac = backend.grad(flow[..., d, None], bound=bound1, order=order).squeeze(-2)
         jac[..., d] += 1
         if transpose:
             matvec.addcmul_(jac, vec[..., d, None])
@@ -346,8 +386,8 @@ def jacmatvec(flow, vec, bound='circulant', voxel_size=1,
     return matvec
 
 
-def bracket(vel_left, vel_right, bound='circulant', has_identity=False,
-            backend=interpol_backend):
+def bracket(vel_left, vel_right, *, bound='circulant', order=1,
+            has_identity=False, backend=None):
     """Compute the Lie bracket of two SVFs
 
     Parameters
@@ -355,6 +395,7 @@ def bracket(vel_left, vel_right, bound='circulant', has_identity=False,
     vel_left : (..., *shape, D) tensor
     vel_right : (..., *shape, D) tensor
     bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
+    order : int, default=1
     has_identity : bool, default=False
     backend : module
 
@@ -363,5 +404,6 @@ def bracket(vel_left, vel_right, bound='circulant', has_identity=False,
     bkt : (..., *shape, D) tensor
 
     """
-    return (compose(vel_left, vel_right, bound, has_identity, backend) -
-            compose(vel_right, vel_left, bound, has_identity, backend))
+    opt = dict(bound=bound, order=order, has_identity=has_identity, backend=backend)
+    return (compose(vel_left, vel_right, **opt) -
+            compose(vel_right, vel_left, **opt))

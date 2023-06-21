@@ -31,10 +31,20 @@ class Laplace(Metric):
             Cache up to `n` kernels
         """
         super().__init__(factor, voxel_size, bound, learnable, cache)
+        self.learnable = learnable
         self._metric_kernel = {}
         self._metric_fourier = {}
         self._greens_kernel = {}
         self._greens_fourier = {}
+
+    def to_voxel_size(self, voxel_size):
+        return type(self)(
+            factor=self.factor,
+            voxel_size=voxel_size,
+            bound=self.bound,
+            learnable=self.learnable,
+            cache=self.cache,
+        )
 
     def greens_kernel(self, x, factor=True):
         shape = tuple(x.shape[2:])
@@ -121,10 +131,21 @@ class Helmoltz(Metric):
         """
         super().__init__(factor, voxel_size, bound, learnable, cache)
         self.alpha = alpha
+        self.learnable = learnable
         self._metric_kernel = {}
         self._metric_fourier = {}
         self._greens_kernel = {}
         self._greens_fourier = {}
+
+    def to_voxel_size(self, voxel_size):
+        return type(self)(
+            factor=self.factor,
+            alpha=self.alpha,
+            voxel_size=voxel_size,
+            bound=self.bound,
+            learnable=self.learnable,
+            cache=self.cache,
+        )
 
     def greens_kernel(self, x, factor=True):
         # x : (..., *spatial, D) tensor

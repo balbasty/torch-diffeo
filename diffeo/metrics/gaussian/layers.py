@@ -46,6 +46,17 @@ class Gaussian(Metric):
         self._metric_fourier = {}
         self._greens_kernel = {}
         self._greens_fourier = {}
+        self.learnable = learnable
+
+    def to_voxel_size(self, voxel_size):
+        return type(self)(
+            fwhm=self.fwhm,
+            factor=self.factor,
+            voxel_size=voxel_size,
+            bound=self.bound,
+            learnable=self.learnable,
+            cache=self.cache,
+        )
 
     def greens_kernel(self, x, factor=True):
         # x : (..., *spatial, D) tensor

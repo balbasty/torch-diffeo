@@ -2,11 +2,12 @@ from diffeo.flows import jacobian, jacdet, add_identity_, sub_identity
 from .pull import pull
 
 
-def push(image, flow, shape=None, bound='dct2', has_identity=False):
-    """Splat an image according to a (voxel) displacement field.
+def push(image, flow, shape=None, bound='dct2', has_identity=False, order=1):
+    r"""Splat an image according to a (voxel) displacement field.
 
-    /!\ The torch version of `push` uses a small deformation approximation
-    /!\ It also does not support the `shape` keyword`
+    !!! warning
+        The torch version of `push` uses a small deformation approximation
+        It also does not support the `shape` keyword`
 
     Parameters
     ----------
@@ -31,6 +32,10 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
         Pushed image
 
     """
+    if order != 1:
+        raise NotImplementedError('backend "torch" does not implement higher order splines')
+    if shape is not None:
+        raise NotImplementedError('backend "torch" does not support pushing to a different shape')
     if not has_identity:
         flow = flow.neg()
     else:
@@ -42,11 +47,12 @@ def push(image, flow, shape=None, bound='dct2', has_identity=False):
     return image
 
 
-def count(flow, shape=None, bound='dct2', has_identity=False):
-    """Splat an image of ones according to a (voxel) displacement field.
+def count(flow, shape=None, bound='dct2', has_identity=False, order=1):
+    r"""Splat an image of ones according to a (voxel) displacement field.
 
-    /!\ The torch version of `push` uses a small deformation approximation
-    /!\ It also does not support the `shape` keyword`
+    !!! warning
+        The torch version of `push` uses a small deformation approximation
+        It also does not support the `shape` keyword`
 
     Parameters
     ----------
@@ -67,6 +73,10 @@ def count(flow, shape=None, bound='dct2', has_identity=False):
         Pushed image
 
     """
+    if order != 1:
+        raise NotImplementedError('backend "torch" does not implement higher order splines')
+    if shape is not None:
+        raise NotImplementedError('backend "torch" does not support pushing to a different shape')
     if not has_identity:
         flow = flow.neg()
     else:

@@ -6,7 +6,7 @@ from diffeo.backends import default_backend
 from diffeo.linalg import jhj, batchmatvec, batchdet
 
 
-def exp(vel, steps=8, bound='circulant', anagrad=False, backend=default_backend):
+def exp(vel, steps=8, bound='circulant', order=1, anagrad=False, backend=default_backend):
     """Exponentiate a stationary velocity field by scaling and squaring.
 
     Parameters
@@ -18,6 +18,8 @@ def exp(vel, steps=8, bound='circulant', anagrad=False, backend=default_backend)
         (corresponding to 2**steps integration steps).
     bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary conditions
+    order : int, defaut=1
+        Order of the spline encoding `vel`.
     anagrad : bool, default=False
         Use analytical gradients rather than autodiff gradients in
         the backward pass. Should be more memory efficient and (maybe)
@@ -30,14 +32,14 @@ def exp(vel, steps=8, bound='circulant', anagrad=False, backend=default_backend)
 
     """
     exp_fn = _Exp.apply if anagrad else exp_forward
-    flow = exp_fn(vel, steps, bound, backend)
+    flow = exp_fn(vel, steps, bound, order, backend)
     return flow
 
 
-def exp_forward(vel, steps=8, bound='circulant', backend=default_backend):
+def exp_forward(vel, steps=8, bound='circulant', order=1, backend=default_backend):
     vel = vel / (2**steps)
-    for i in range(steps):
-        vel = compose(vel, vel, bound=bound, backend=backend)
+    for _ in range(steps):
+        vel = compose(vel, vel, bound=bound, order=order, backend=backend)
     return vel
 
 
@@ -52,7 +54,7 @@ def expjac_forward(vel, steps=8, bound='circulant', backend=default_backend):
     return vel, jac
 
 
-def bch(vel_left, vel_right, order=2, bound='circulant', backend=default_backend):
+def bch(vel_left, vel_right, trunc=2, bound='circulant', order=1, backend=default_backend):
     """Find v such that exp(v) = exp(u) o exp(w) using the
     (truncated) Baker–Campbell–Hausdorff formula.
 
@@ -62,34 +64,36 @@ def bch(vel_left, vel_right, order=2, bound='circulant', backend=default_backend
     ----------
     vel_left : (B, *shape, D) tensor
     vel_right : (B, *shape, D) tensor
-    order : 1..4, default=2
-        Truncation order.
+    trunc : 1..4, default=2
+    bound : str
+    order : int
+    backend : diffeo.backend
 
     Returns
     -------
     vel : (B, *shape, D) tensor
 
     """
-    brkt = lambda a, b: bracket(a, b, bound=bound, backend=backend)
+    brkt = lambda a, b: bracket(a, b, bound=bound, order=order, backend=backend)
     vel = vel_left + vel_right
-    if order > 1:
+    if trunc > 1:
         b1 = brkt(vel_left, vel_right)
         vel.add_(b1, alpha=1/2)
-        if order > 2:
+        if trunc > 2:
             b2_left = brkt(vel_left, b1)
             vel.add_(b2_left, alpha=1/12)
             b2_right = brkt(vel_right, b1)
             vel.add_(b2_right, alpha=-1/12)
-            if order > 3:
+            if trunc > 3:
                 b3 = brkt(vel_right, b2_left)
                 vel.add_(b3, alpha=-1/24)
-                if order > 4:
+                if trunc > 4:
                     raise ValueError('BCH only implemented up to order 4')
     return vel
 
 
-def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', rotate_grad=False,
-                 backend=default_backend):
+def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', order=1,
+                 rotate_grad=False, backend=default_backend):
     """Backward pass of SVF exponentiation.
 
     This should be much more memory-efficient than the autograd pass
@@ -111,7 +115,6 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', rotate_grad=F
     Note that gradients must first be rotated using the Jacobian of
     the exponentiated transform so that the denominator refers to the
     initial velocity (we want dL/dV0, not dL/dPsi).
-    THIS IS NOT DONE INSIDE THIS FUNCTION YET (see _dartel).
 
     Parameters
     ----------
@@ -125,6 +128,9 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', rotate_grad=F
         Number of scaling and squaring steps
     bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}, default='circulant'
         Boundary condition
+    order : int, default=1
+        Spline order.
+        !!!warning "Must be `1`!"
     rotate_grad : bool, default=False
         If True, rotate the gradients using the Jacobian of exp(vel).
 
@@ -136,6 +142,10 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', rotate_grad=F
         Approximate (block diagonal) Hessian with respect to the SVF
 
     """
+    if order != 1:
+        raise NotImplementedError(
+            'SVF analytical gradients not implemented for higher spline orders.'
+        )
 
     def pushforward_grad(grad, vel, jac, det):
         grad = backend.pull(grad, vel, bound=bound)
@@ -206,11 +216,11 @@ def exp_backward(vel, grad, hess=None, steps=8, bound='circulant', rotate_grad=F
 class _Exp(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, vel, steps, bound, backend):
+    def forward(ctx, vel, steps, bound, order, backend):
         if vel.requires_grad:
             ctx.save_for_backward(vel)
-            ctx.args = {'steps': steps,  'bound': bound, 'backend': backend}
-        return exp_forward(vel, steps, bound, backend)
+            ctx.args = {'steps': steps,  'bound': bound, 'order': order, 'backend': backend}
+        return exp_forward(vel, steps, bound, order, backend)
 
     @staticmethod
     def backward(ctx, grad):
@@ -219,6 +229,7 @@ class _Exp(torch.autograd.Function):
             vel, grad,
             steps=ctx.args['steps'],
             bound=ctx.args['bound'],
+            order=ctx.args['order'],
             backend=ctx.args['backend'],
             rotate_grad=True,
         )

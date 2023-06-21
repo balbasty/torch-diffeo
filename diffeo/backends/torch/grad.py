@@ -3,7 +3,7 @@ from diffeo.flows import jacobian
 from diffeo.diffdiv import diff
 
 
-def grad(image, flow, bound='dct2', has_identity=False):
+def grad(image, flow, bound='dct2', has_identity=False, order=1):
     """Compute spatial gradients of image according to a (voxel) displacement field.
 
     Parameters
@@ -27,6 +27,8 @@ def grad(image, flow, bound='dct2', has_identity=False):
         Sampled gradients
 
     """
+    if order != 1:
+        raise NotImplementedError('backend "torch" does not implement higher order splines')
     ndim = flow.shape[-1]
     jac = jacobian(flow, bound=bound, has_identity=has_identity, add_identity=True)
     jac = jac.inverse()

@@ -1,4 +1,4 @@
-__all__ = ['Mixture']
+__all__ = ['SplineMixture']
 import torch
 from torch import nn, Tensor
 from math import floor
@@ -10,9 +10,9 @@ from diffeo.conv import flowconv
 from . import kernels, forward
 
 
-class Mixture(Metric):
+class SplineMixture(Metric):
     """
-    Positive semi-definite metric based on finite-difference regularisers.
+    Positive semi-definite metric based on analytical spline regularisers.
 
     Mixture of "absolute", "membrane", "bending" and "linear-elastic" energies.
     Note that these quantities refer to what's penalised when computing the
@@ -21,7 +21,7 @@ class Mixture(Metric):
     """
 
     def __init__(self, absolute=0, membrane=0, bending=0, lame_shears=0, lame_div=0,
-                 factor=1, voxel_size=1, bound='circulant', use_diff=True,
+                 factor=1, voxel_size=1, bound='circulant', order=3, use_conv=True,
                  learnable=False, cache=False):
         """
         Parameters
@@ -42,8 +42,10 @@ class Mixture(Metric):
             Voxel size
         bound : [list of] {'circulant', 'neumann', 'dirichlet', 'sliding'}
             Boundary conditions
-        use_diff : bool
-            Use finite differences to perform the forward pass.
+        order : int
+            Spline order
+        use_conv : bool
+            Use convolution with small kernel to perform the forward pass.
             Otherwise, perform the convolution in Fourier space.
         learnable : bool or {'factor', 'components', 'factor+components'}
             Make `factor` a learnable parameter.
@@ -117,8 +119,9 @@ class Mixture(Metric):
         self._metric_fourier = {}
         self._greens_kernel = {}
         self._greens_fourier = {}
-        self.use_diff = use_diff
         self.learnable = learnable
+        self.use_conv = use_conv
+        self.order = order
 
     def to_voxel_size(self, voxel_size):
         return type(self)(
@@ -130,7 +133,8 @@ class Mixture(Metric):
             factor=self.factor,
             voxel_size=voxel_size,
             bound=self.bound,
-            use_diff=self.use_diff,
+            order=self.order,
+            use_conv=self.use_conv,
             learnable=self.learnable,
             cache=self.cache,
         )
@@ -154,24 +158,10 @@ class Mixture(Metric):
         opt = ', '.join(map(make_opt, filter(bool, keys)))
         return opt
 
-    def _str(self):
-        return f'{type(self).__name__}({self._str_opt()})'
-
-    def __str__(self):
-        return self._str()
-
-    def __repr__(self):
-        return self._str()
-
     def forward(self, x, factor=True):
         # x: (..., *spatial, D) tensor
         # -> (..., *spatial, D) tensor
-        if self.use_diff == 'conv':
-            kernel = self.metric_kernel(x).movedim(-1, 0)
-            if kernel.ndim == x.shape[-1] + 2:
-                kernel = kernel.movedim(-1, 0)
-            return flowconv(x, kernel, bound=self.bound)
-        elif self.use_diff:
+        if self.use_conv:
             return forward.mixture(
                 x,
                 absolute=self.absolute,
@@ -182,6 +172,7 @@ class Mixture(Metric):
                 factor=self.factor if factor else 1,
                 voxel_size=self.voxel_size,
                 bound=self.bound,
+                order=self.order,
             )
         else:
             return super().forward(x, factor)
@@ -197,9 +188,11 @@ class Mixture(Metric):
         shape = tuple(x.shape[-ndim-1:-1])
         kernel = self._metric_kernel.get(shape, None)
         if kernel is None:
-            kernel = sum_kernel(self.absolute, self.membrane, self.bending,
-                                self.lame_shears, self.lame_div, len(shape),
-                                self.voxel_size, dtype=x.dtype, device=x.device)
+            kernel = kernels.mixture(
+                ndim, self.absolute, self.membrane, self.bending,
+                self.lame_shears, self.lame_div, 1, self.voxel_size,
+                self.order, dtype=x.dtype, device=x.device,
+            )
             self.cachetensor(self._metric_kernel, shape, kernel)
         kernel = kernel.to(x)
         if factor:
@@ -286,58 +279,6 @@ class Mixture(Metric):
         if factor:
             kernel = kernel / self.factor
         return kernel
-
-
-def sum_kernel(a, m, b, s, d, ndim, vx, **backend):
-    a0 = not is_zero(a)
-    m0 = not is_zero(m)
-    b0 = not is_zero(b)
-    s0 = not is_zero(s)
-    d0 = not is_zero(d)
-
-    k0 = 5 if b0 else 3 if (m0 or s0 or d0) else 1
-    kshape = [k0] * ndim
-    kshape += [ndim]
-    if s0 or d0:
-        kshape += [ndim]
-    kernel = torch.zeros(kshape, **backend)
-
-    if a0:
-        patch = (slice((k0-1)//2, -(k0-1)//2 or None),) * ndim
-        patch = kernel[patch]
-        if s0 or d0:
-            patch = patch.diagonal(0, -1, -2)
-        ker = kernels.absolute(ndim, vx, **backend).to_dense()
-        patch.add_(ker.movedim(0, -1), alpha=a)
-
-    if m0:
-        patch = (slice((k0-3)//2, -(k0-3)//2 or None),) * ndim
-        patch = kernel[patch]
-        if s0 or d0:
-            patch = patch.diagonal(0, -1, -2)
-        ker = kernels.membrane(ndim, vx, **backend).to_dense()
-        patch.add_(ker.movedim(0, -1), alpha=m)
-
-    if b0:
-        patch = kernel
-        if s0 or d0:
-            patch = patch.diagonal(0, -1, -2)
-        ker = kernels.bending(ndim, vx, **backend).to_dense()
-        patch.add_(ker.movedim(0, -1), alpha=b)
-
-    if s0:
-        patch = (slice((k0-3)//2, -(k0-3)//2 or None),) * ndim
-        patch = kernel[patch]
-        ker = kernels.lame_shear(ndim, vx, **backend).to_dense()
-        patch.add_(ker.movedim(0, -1).movedim(0, -1), alpha=s)
-
-    if d0:
-        patch = (slice((k0-3)//2, -(k0-3)//2 or None),) * ndim
-        patch = kernel[patch]
-        ker = kernels.lame_div(ndim, vx, **backend).to_dense()
-        patch.add_(ker.movedim(0, -1).movedim(0, -1), alpha=d)
-
-    return kernel
 
 
 def is_zero(x: Union[int, float, Tensor]) -> bool:

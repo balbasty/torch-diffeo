@@ -5,7 +5,7 @@ from diffeo.bounds import bound2dft, has_sliding, sliding2dft
 import torch
 
 
-def pull(image, flow, bound='dct2', has_identity=False):
+def pull(image, flow, bound='dct2', has_identity=False, order=1):
     """Warp an image according to a (voxel) displacement field.
 
     Parameters
@@ -19,6 +19,9 @@ def pull(image, flow, bound='dct2', has_identity=False):
     has_identity : bool, default=False
         - If False, `flow` is contains relative displacement.
         - If True, `flow` contains absolute coordinates.
+    order : int, default=1
+        Order of the spline encoding the input `image`.
+        Should generally only be used if `image` is a flow field.
 
     Returns
     -------
@@ -37,7 +40,7 @@ def pull(image, flow, bound='dct2', has_identity=False):
         for d in range(ndim):
             image.append(_pull(
                 image0[..., d:d+1], flow,
-                bound=sliding2dft(bound, d), order=1, extrapolate=True))
+                bound=sliding2dft(bound, d), order=order, extrapolate=True))
         return torch.cat(image, dim=-1)
     else:
-        return _pull(image, flow, bound=bound, order=1, extrapolate=True)
+        return _pull(image, flow, bound=bound, order=order, extrapolate=True)
