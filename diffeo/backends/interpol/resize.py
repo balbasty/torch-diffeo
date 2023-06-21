@@ -9,13 +9,13 @@ def resize(ndim, image, factor=None, shape=None, anchor='center', bound='dct2', 
 
     Parameters
     ----------
-    image : (B, *shape_in, C) tensor
+    image : (..., *shape_in, C) tensor
     factor OR shape : int or list[int]
     anchor : {'center', 'edge'}
 
     Returns
     -------
-    image : (B, *shape_out, C) tensor
+    image : (..., *shape_out, C) tensor
 
     """
     if shape and factor:

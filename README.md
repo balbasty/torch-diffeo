@@ -627,7 +627,7 @@ grad : (..., *shape_out, C, D) tensor
 
 
 def resize(ndim, image, factor=None, shape=None, anchor='center', bound='dct2', order=1): ...
-"""Upsample using centers or edges of the corner voxels as anchors.
+"""Resize using centers or edges of the corner voxels as anchors.
 
 Parameters
 ----------
