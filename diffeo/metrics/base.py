@@ -129,8 +129,8 @@ class Metric(nn.Module):
         if kernel.ndim == ndim + 2:
             # SVD
             eigval, eigvec = torch.linalg.eigh(kernel)
-            eigvec = eigvec.sqrt()
-            kernel = eigval.matmul(eigvec.unqueeze(-1) * eigval.tranpose(-1, -2))
+            eigval = eigval.sqrt()
+            kernel = eigvec.matmul(eigval.unsqueeze(-1) * eigvec.transpose(-1, -2))
             del eigval, eigvec
         else:
             assert kernel.ndim in (x.ndim-1, x.ndim-2)
@@ -176,7 +176,7 @@ class Metric(nn.Module):
             # SVD
             eigval, eigvec = torch.linalg.eigh(kernel)
             eigvec = eigvec.sqrt()
-            kernel = eigval.matmul(eigvec.unqueeze(-1) * eigval.tranpose(-1, -2))
+            kernel = eigval.matmul(eigvec.unsqueeze(-1) * eigval.tranpose(-1, -2))
             del eigval, eigvec
         else:
             assert kernel.ndim in (x.ndim-1, x.ndim-2)
