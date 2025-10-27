@@ -48,7 +48,21 @@ class Metric(nn.Module):
 
     def forward(self, x, factor=True):
         """Apply the forward linear operator: v -> Lv
+
+        Converts velocity fields to momentum fields.
+
+        Parameters
+        ----------
         v : (..., *spatial, D) tensor
+            Input velocity field
+        factor : bool
+            Whether to incorporate the global factor
+
+        Returns
+        -------
+        m : (..., *spatial, D) tensor
+            Output momentum field
+
         """
         ndim = x.shape[-1]
         ft = FrequencyTransform(ndim, self.bound)
@@ -83,7 +97,20 @@ class Metric(nn.Module):
 
     def inverse(self, x, factor=True):
         """Apply the inverse (Greens) linear operator: m -> Km
+
+        Converts momentum fields to velocity fields.
+
+        Parameters
+        ----------
         m : (..., *spatial, D) tensor
+            Input momentum field
+        factor : bool
+            Whether to incorporate the global factor
+
+        Returns
+        -------
+        v : (..., *spatial, D) tensor
+            Output velocity field
         """
         ndim = x.shape[-1]
         ft = FrequencyTransform(ndim, self.bound)
@@ -115,15 +142,12 @@ class Metric(nn.Module):
 
         return x
 
-    def whiten(self, x, factor=True):
-        """Apply the inverse square root linear operator: v -> sqrt(K) v
-        v : (..., *spatial, D) tensor
-        """
+    def _conv_sqrt(self, kernel_fn, x):
         ndim = x.shape[-1]
         ft = FrequencyTransform(ndim, self.bound)
 
         # Fourier kernel
-        kernel = self.greens_fourier(x, factor=False)
+        kernel = kernel_fn(x, factor=False)
 
         # Square root
         if kernel.ndim == ndim + 2:
@@ -155,55 +179,55 @@ class Metric(nn.Module):
         # Inverse Fourier transform
         x = real(ft.inverse(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1))
 
-        # Global factor
-        if factor:
-            x = x / (self.factor ** 0.5)
-
         return x
 
-    def color(self, x, factor=True):
-        """Apply the square root linear operator: m -> sqrt(L) m
-        m : (..., *spatial, D) tensor
+    def whiten(self, x, factor=True):
+        """Apply the square root linear operator: v -> sqrt(L) v
+
+        Whiten velocity fields.
+
+        Parameters
+        ----------
+        v : (..., *spatial, D) tensor
+            Input velocity field
+        factor : bool
+            Whether to incorporate the global factor
+
+        Returns
+        -------
+        x : (..., *spatial, D) tensor
+            Output whitened field
         """
-        ndim = x.shape[-1]
-        ft = FrequencyTransform(ndim, self.bound)
-
-        # Fourier kernel
-        kernel = self.metric_fourier(x, factor=False)
-
-        # Square root
-        if kernel.ndim == ndim + 2:
-            # SVD
-            eigval, eigvec = torch.linalg.eigh(kernel)
-            eigvec = eigvec.sqrt()
-            kernel = eigval.matmul(eigvec.unsqueeze(-1) * eigval.tranpose(-1, -2))
-            del eigval, eigvec
-        else:
-            assert kernel.ndim in (x.ndim-1, x.ndim-2)
-            # diagonal
-            kernel = kernel.sqrt()
-
-        # Fourier transform
-        x = ft.forward(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1)
-
-        if kernel.ndim == ndim + 2:
-            # matrix multiply
-            if x.is_complex():
-                x = torch.complex(
-                    kernel.matmul(x.real.unsqueeze(-1)).squeeze(-1),
-                    kernel.matmul(x.imag.unsqueeze(-1)).squeeze(-1))
-            else:
-                x = kernel.matmul(x.unsqueeze(-1)).squeeze(-1)
-        else:
-            # pointwise multiply
-            x = x * kernel
-
-        # Inverse Fourier transform
-        x = real(ft.inverse(x.movedim(-1, -ndim-1)).movedim(-ndim-1, -1))
+        x = self._conv_sqrt(self.metric_fourier, x)
 
         # Global factor
         if factor:
             x = x * (self.factor ** 0.5)
+
+        return x
+
+    def color(self, x, factor=True):
+        """Apply the inverse square root linear operator: x -> sqrt(K) x
+
+        Color white fields.
+
+        Parameters
+        ----------
+        x : (..., *spatial, D) tensor
+            Input white field
+        factor : bool
+            Whether to incorporate the global factor
+
+        Returns
+        -------
+        v : (..., *spatial, D) tensor
+            Output velocity field
+        """
+        x = self._conv_sqrt(self.greens_fourier, x)
+
+        # Global factor
+        if factor:
+            x = x / (self.factor ** 0.5)
 
         return x
 
