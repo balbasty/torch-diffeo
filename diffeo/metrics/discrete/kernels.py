@@ -230,7 +230,7 @@ def lame_div(dim, voxel_size=1, dtype=None, device=None):
     kernel = []
     center_index = [1] * dim
     indices = []
-    for d in range(dim):  # input channel
+    for d in range(dim):                        # input channel
         kernel += [2]
         index = [d, d, *center_index]
         indices.append(index)
@@ -241,43 +241,41 @@ def lame_div(dim, voxel_size=1, dtype=None, device=None):
         index = [d, d, *center_index]
         index[2 + d] = 2
         indices.append(index)
-        for dd in range(d+1, dim):  # output channel
-            for d1 in range(dim):   # interation 1
-                for d2 in range(d + 1, dim):  # interation 2
-                    kernel += [-0.25] * 4
-                    index = [d, dd, *center_index]
-                    index[2 + d1] = 0
-                    index[2 + d2] = 0
-                    indices.append(index)
-                    index = [dd, d, *center_index]
-                    index[2 + d1] = 0
-                    index[2 + d2] = 0
-                    indices.append(index)
-                    index = [d, dd, *center_index]
-                    index[2 + d1] = 2
-                    index[2 + d2] = 2
-                    indices.append(index)
-                    index = [dd, d, *center_index]
-                    index[2 + d1] = 2
-                    index[2 + d2] = 2
-                    indices.append(index)
-                    kernel += [0.25] * 4
-                    index = [d, dd, *center_index]
-                    index[2 + d1] = 0
-                    index[2 + d2] = 2
-                    indices.append(index)
-                    index = [dd, d, *center_index]
-                    index[2 + d1] = 0
-                    index[2 + d2] = 2
-                    indices.append(index)
-                    index = [d, dd, *center_index]
-                    index[2 + d1] = 2
-                    index[2 + d2] = 0
-                    indices.append(index)
-                    index = [dd, d, *center_index]
-                    index[2 + d1] = 2
-                    index[2 + d2] = 0
-                    indices.append(index)
+        for dd in range(d+1, dim):              # output channel
+            kernel += [-0.25] * 4
+            index = [d, dd, *center_index]
+            index[2 + d] = 0
+            index[2 + dd] = 0
+            indices.append(index)
+            index = [dd, d, *center_index]
+            index[2 + d] = 0
+            index[2 + dd] = 0
+            indices.append(index)
+            index = [d, dd, *center_index]
+            index[2 + d] = 2
+            index[2 + dd] = 2
+            indices.append(index)
+            index = [dd, d, *center_index]
+            index[2 + d] = 2
+            index[2 + dd] = 2
+            indices.append(index)
+            kernel += [0.25] * 4
+            index = [d, dd, *center_index]
+            index[2 + d] = 0
+            index[2 + dd] = 2
+            indices.append(index)
+            index = [dd, d, *center_index]
+            index[2 + dd] = 0
+            index[2 + dd] = 2
+            indices.append(index)
+            index = [d, dd, *center_index]
+            index[2 + d] = 2
+            index[2 + dd] = 0
+            indices.append(index)
+            index = [dd, d, *center_index]
+            index[2 + d] = 2
+            index[2 + dd] = 0
+            indices.append(index)
 
     indices = torch.as_tensor(indices, dtype=torch.long, device=device)
     kernel = torch.as_tensor(kernel, dtype=dtype, device=device)
