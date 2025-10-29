@@ -62,7 +62,10 @@ def make_vector(input, n=None, crop=True, *args,
 
 def same_storage(x, y):
     """Return true if `x` and `y` share the same underlying storage."""
-    return x.storage().data_ptr() == y.storage().data_ptr()
+    if hasattr(x, "untyped_storage"):
+        return x.untyped_storage().data_ptr() == y.untyped_storage().data_ptr()
+    else:
+        return x.storage().data_ptr() == y.storage().data_ptr()
 
 
 def get_backend(x):
